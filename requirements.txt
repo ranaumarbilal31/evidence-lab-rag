@@ -1,0 +1,6 @@
+streamlit==1.57.0
+google-genai==2.22.0
+pydantic==2.12.5
+numpy==2.4.4
+pypdf==6.18.1
+tzdata==2026.2
