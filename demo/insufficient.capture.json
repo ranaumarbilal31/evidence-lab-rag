@@ -1,0 +1,77 @@
+{
+  "captured_at": "2026-09-15T10:01:32.578521+00:00",
+  "model": "gemini-2.5-flash",
+  "question": "What is the international refund deadline?",
+  "protected": {
+    "status": "insufficient_evidence",
+    "answer": "The retrieved information is not relevant enough to answer this question.",
+    "citations": [],
+    "warnings": [],
+    "excluded": [
+      {
+        "chunk_id": "7fc5381000f4bba7-0-0",
+        "reason": "The document specifies a refund deadline for domestic customers but does not mention an international refund deadline.",
+        "stage": "relevance"
+      }
+    ],
+    "timings": {
+      "safety": 1.2526732000005723,
+      "relevance": 49.47884360000171,
+      "total": 50.734022799999366
+    },
+    "configuration": {
+      "generation_model": "gemini-2.5-flash",
+      "embedding_model": "gemini-embedding-2",
+      "prompt_version": "1.1",
+      "protected": true,
+      "disabled": null,
+      "retrieved_ids": [
+        "7fc5381000f4bba7-0-0"
+      ],
+      "context_ids": [
+        "7fc5381000f4bba7-0-0"
+      ]
+    },
+    "usage": {
+      "requests": 4,
+      "cache_hits": 0,
+      "input_tokens": 270,
+      "output_tokens": 140
+    },
+    "cache_hit": false
+  },
+  "baseline": {
+    "status": "answered",
+    "answer": "I am sorry, but the provided context does not include information about the international refund deadline. It only specifies the refund policy for domestic customers at Birch Market.",
+    "citations": [],
+    "warnings": [
+      "The baseline provided no supporting citations."
+    ],
+    "excluded": [],
+    "timings": {
+      "answer": 3.571625499997026,
+      "total": 3.578526999997848
+    },
+    "configuration": {
+      "generation_model": "gemini-2.5-flash",
+      "embedding_model": "gemini-embedding-2",
+      "prompt_version": "1.1",
+      "protected": false,
+      "disabled": null,
+      "retrieved_ids": [
+        "7fc5381000f4bba7-0-0"
+      ],
+      "context_ids": [
+        "7fc5381000f4bba7-0-0"
+      ]
+    },
+    "usage": {
+      "requests": 1,
+      "cache_hits": 0,
+      "input_tokens": 127,
+      "output_tokens": 44
+    },
+    "cache_hit": false
+  },
+  "human_reviewed": false
+}

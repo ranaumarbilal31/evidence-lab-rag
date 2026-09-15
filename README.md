@@ -6,7 +6,7 @@ A free-API research demo comparing ordinary RAG with a pipeline that screens ret
 
 Public demo: **https://evidence-lab-rag.streamlit.app/**. Source: https://github.com/ranaumarbilal31/evidence-lab-rag.
 
-All five sample embedding indexes are generated through the API. Three real baseline/protected captures are available (clean, malicious, irrelevant); conflict and insufficient-evidence captures are pending free quota. The provider reported a free generation request limit of 20, so the application cap is 20 per day. No billing or alternate provider is enabled. The app displays clearly labeled illustrations where captures are unavailable. Human-scored research and hosted acceptance remain incomplete; see [RELEASE_STATUS.md](RELEASE_STATUS.md).
+All five sample embedding indexes are generated through the API. All five real baseline/protected captures are available, including conflict and insufficient evidence. The provider reported a free generation request limit of 20, so the application cap is 20 per day. No billing or alternate provider is enabled. The app displays clearly labeled illustrations where captures are unavailable. Human-scored research and hosted acceptance remain incomplete; see [RELEASE_STATUS.md](RELEASE_STATUS.md).
 
 ## Run on Windows
 

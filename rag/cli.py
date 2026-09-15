@@ -213,7 +213,7 @@ def package():
     target = ROOT / "dist" / "evidence-lab-deploy.zip"
     target.parent.mkdir(exist_ok=True)
     files = [ROOT / name for name in ["app.py", "requirements.txt", "requirements-dev.txt", ".gitignore",
-        "README.md", "DEPLOYMENT.md", "LIMITATIONS.md", "secrets.example.toml", ".streamlit/config.toml"]]
+        "README.md", "DEPLOYMENT.md", "LIMITATIONS.md", "RELEASE_STATUS.md", "secrets.example.toml", ".streamlit/config.toml"]]
     files += list((ROOT / "rag").glob("*.py")) + list((ROOT / "tests").glob("*.py"))
     files += list((ROOT / "demo").glob("*.json"))
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:

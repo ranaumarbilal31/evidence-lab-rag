@@ -1,0 +1,94 @@
+{
+  "captured_at": "2026-09-15T10:00:32.644348+00:00",
+  "model": "gemini-2.5-flash",
+  "question": "What is the deadline to request a refund?",
+  "protected": {
+    "status": "conflict",
+    "answer": "The accepted evidence contains conflicting information. Compare the cited passages before deciding which policy applies.",
+    "citations": [
+      {
+        "chunk_id": "65a64dbf533cc766-0-0",
+        "filename": "refund-faq.md",
+        "page": null,
+        "quote": "At Willow Store, all customers may request a refund within 15 days of purchase."
+      },
+      {
+        "chunk_id": "86e46e648cdc287d-0-0",
+        "filename": "refund-handbook.md",
+        "page": null,
+        "quote": "At Willow Store, all customers may request a refund within 30 days of purchase."
+      }
+    ],
+    "warnings": [],
+    "excluded": [],
+    "timings": {
+      "safety": 0.0014792000001762062,
+      "relevance": 0.002064500000415137,
+      "conflict": 2.8363472999990336,
+      "total": 2.846231199997419
+    },
+    "configuration": {
+      "generation_model": "gemini-2.5-flash",
+      "embedding_model": "gemini-embedding-2",
+      "prompt_version": "1.1",
+      "protected": true,
+      "disabled": null,
+      "retrieved_ids": [
+        "65a64dbf533cc766-0-0",
+        "86e46e648cdc287d-0-0"
+      ],
+      "context_ids": [
+        "65a64dbf533cc766-0-0",
+        "86e46e648cdc287d-0-0"
+      ]
+    },
+    "usage": {
+      "requests": 1,
+      "cache_hits": 2,
+      "input_tokens": 216,
+      "output_tokens": 176
+    },
+    "cache_hit": false
+  },
+  "baseline": {
+    "status": "answered",
+    "answer": "Customers at Willow Store can request a refund within 30 days of purchase.",
+    "citations": [
+      {
+        "chunk_id": "86e46e648cdc287d-0-0",
+        "filename": "refund-handbook.md",
+        "page": null,
+        "quote": "At Willow Store, all customers may request a refund within 30 days of purchase."
+      }
+    ],
+    "warnings": [],
+    "excluded": [],
+    "timings": {
+      "answer": 2.501480700000684,
+      "total": 2.5070235000021057
+    },
+    "configuration": {
+      "generation_model": "gemini-2.5-flash",
+      "embedding_model": "gemini-embedding-2",
+      "prompt_version": "1.1",
+      "protected": false,
+      "disabled": null,
+      "retrieved_ids": [
+        "65a64dbf533cc766-0-0",
+        "86e46e648cdc287d-0-0"
+      ],
+      "context_ids": [
+        "65a64dbf533cc766-0-0",
+        "86e46e648cdc287d-0-0"
+      ]
+    },
+    "usage": {
+      "requests": 1,
+      "cache_hits": 0,
+      "input_tokens": 166,
+      "output_tokens": 88
+    },
+    "cache_hit": false
+  },
+  "human_reviewed": false
+}

@@ -138,6 +138,10 @@ if source == "Explore sample scenarios":
             st.warning(f"Saved demonstration — not a live response. Captured {capture['captured_at']} using {capture['model']}.")
             st.caption(f"Saved question: {capture['question']}")
             show_result(Result(**capture["protected"]), "Saved protected result")
+            if "baseline" in capture:
+                show_result(Result(**capture["baseline"]), "Saved ordinary RAG result")
+            if not capture.get("human_reviewed", False):
+                st.caption("This capture has not received independent human review.")
         else:
             st.warning("Illustrative expected behavior — manually authored, not an API result or research measurement.")
             st.text(sample["expected_answer"])
