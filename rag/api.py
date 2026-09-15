@@ -97,7 +97,9 @@ class Gemini:
                     system_instruction=system, temperature=0,
                     max_output_tokens=MAX_OUTPUT,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    response_mime_type="application/json", response_schema=schema)))
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                    response_mime_type="application/json",
+                    response_json_schema=schema.model_json_schema())))
         candidates = response.candidates or []
         if not candidates or str(candidates[0].finish_reason).split(".")[-1] != "STOP":
             raise SchemaError("The API blocked or truncated its response. No unchecked answer was returned.")
@@ -134,4 +136,3 @@ class Gemini:
         value = vector.tolist()
         self.cache.put(key, value)
         return value
-

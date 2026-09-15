@@ -4,7 +4,7 @@ from collections.abc import Mapping
 GEN_MODEL = "gemini-2.5-flash"
 EMBED_MODEL = "gemini-embedding-2"
 DIMENSIONS = 768
-PROMPT_VERSION = "1.0"
+PROMPT_VERSION = "1.1"
 EMBED_VERSION = "text-no-task-type-v1"
 MAX_INPUT = 4096
 MAX_OUTPUT = 1536
@@ -37,4 +37,3 @@ class Settings:
         return bool(self.api_key and self.confirmed and all(
             value > 0 for limits in (self.generation, self.embedding)
             for value in (limits.rpm, limits.tpm, limits.rpd)))
-

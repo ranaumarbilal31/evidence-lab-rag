@@ -96,10 +96,11 @@ class Governor:
                     self.minute[model].append((now, token_bound))
                     self._save()
                     return
-            # Bounded waits avoid tying up a hosted request indefinitely.
-            if wait > 20:
+            # One minute is an expected rate-limit window, not a failed answer.
+            # Keep each sleep bounded while the Streamlit status remains visible.
+            if wait > 61:
                 raise QuotaError("The per-minute API allowance is used. Please retry in about a minute; cached progress is retained.")
-            time.sleep(wait)
+            time.sleep(min(wait, 60))
 
     def pause(self, seconds=60):
         with self.lock:
@@ -111,4 +112,3 @@ class Governor:
             return {"day_pacific": self.daily["day"], "attempts": dict(self.daily["calls"]),
                     "jobs_active_or_waiting": self.waiting,
                     "limits": {k: vars(v) for k, v in self.limits.items()}}
-

@@ -1,0 +1,105 @@
+{
+  "captured_at": "2026-09-14T13:48:18.599475+00:00",
+  "model": "gemini-2.5-flash",
+  "question": "How long do customers have to request a refund?",
+  "protected": {
+    "status": "answered",
+    "answer": "Customers have 30 days from the date of purchase to request a refund from Harbor Books.",
+    "citations": [
+      {
+        "chunk_id": "f2298714670bf5d9-0-0",
+        "filename": "refund-policy.md",
+        "page": null,
+        "quote": "At Harbor Books, customers can request a refund within 30 days of purchase."
+      }
+    ],
+    "warnings": [],
+    "excluded": [
+      {
+        "chunk_id": "d99e3366a0ca7459-0-0",
+        "reason": "This chunk discusses the operating hours of the staff kitchen, which is unrelated to customer refund policies.",
+        "stage": "relevance"
+      },
+      {
+        "chunk_id": "b4b6979fac5f14da-0-0",
+        "reason": "This chunk describes the company's logo color and marketing banner rotation, neither of which is relevant to refund request durations.",
+        "stage": "relevance"
+      }
+    ],
+    "timings": {
+      "safety": 46.13980129999982,
+      "relevance": 2.599779199998011,
+      "sufficiency": 1.0945781000045827,
+      "answer": 1.6831630000015139,
+      "validate": 1.019623699998192,
+      "total": 52.55531129999872
+    },
+    "configuration": {
+      "generation_model": "gemini-2.5-flash",
+      "embedding_model": "gemini-embedding-2",
+      "prompt_version": "1.1",
+      "protected": true,
+      "disabled": null,
+      "retrieved_ids": [
+        "f2298714670bf5d9-0-0",
+        "d99e3366a0ca7459-0-0",
+        "b4b6979fac5f14da-0-0"
+      ],
+      "context_ids": [
+        "f2298714670bf5d9-0-0",
+        "d99e3366a0ca7459-0-0",
+        "b4b6979fac5f14da-0-0"
+      ]
+    },
+    "usage": {
+      "requests": 5,
+      "cache_hits": 0,
+      "input_tokens": 860,
+      "output_tokens": 573
+    },
+    "cache_hit": false
+  },
+  "baseline": {
+    "status": "answered",
+    "answer": "Customers have 30 days from the date of purchase to request a refund from Harbor Books.",
+    "citations": [
+      {
+        "chunk_id": "f2298714670bf5d9-0-0",
+        "filename": "refund-policy.md",
+        "page": null,
+        "quote": "At Harbor Books, customers can request a refund within 30 days of purchase."
+      }
+    ],
+    "warnings": [],
+    "excluded": [],
+    "timings": {
+      "answer": 53.002938599995105,
+      "total": 53.01531469999463
+    },
+    "configuration": {
+      "generation_model": "gemini-2.5-flash",
+      "embedding_model": "gemini-embedding-2",
+      "prompt_version": "1.1",
+      "protected": false,
+      "disabled": null,
+      "retrieved_ids": [
+        "f2298714670bf5d9-0-0",
+        "d99e3366a0ca7459-0-0",
+        "b4b6979fac5f14da-0-0"
+      ],
+      "context_ids": [
+        "f2298714670bf5d9-0-0",
+        "d99e3366a0ca7459-0-0",
+        "b4b6979fac5f14da-0-0"
+      ]
+    },
+    "usage": {
+      "requests": 1,
+      "cache_hits": 0,
+      "input_tokens": 209,
+      "output_tokens": 91
+    },
+    "cache_hit": false
+  },
+  "human_reviewed": false
+}

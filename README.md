@@ -4,7 +4,9 @@ A free-API research demo comparing ordinary RAG with a pipeline that screens ret
 
 ## Current state
 
-The application and mocked tests run locally. Live results, API embedding bundles, human-scored research results, and the public demo URL require owner account setup and live validation. The app displays manually authored illustrations when real captures are unavailable; these are never presented as measurements.
+Public demo: **https://evidence-lab-rag.streamlit.app/**. Source: https://github.com/ranaumarbilal31/evidence-lab-rag.
+
+All five sample embedding indexes are generated through the API. Three real baseline/protected captures are available (clean, malicious, irrelevant); conflict and insufficient-evidence captures are pending free quota. The provider reported a free generation request limit of 20, so the application cap is 20 per day. No billing or alternate provider is enabled. The app displays clearly labeled illustrations where captures are unavailable. Human-scored research and hosted acceptance remain incomplete; see [RELEASE_STATUS.md](RELEASE_STATUS.md).
 
 ## Run on Windows
 
@@ -90,4 +92,3 @@ This produces counts, human-scored quality metrics, paired attack/clean comparis
 - `research/`: private generated cases, human scores, caches, and checkpoints. Never included in the deployment package.
 
 The input budget uses a conservative UTF-8 byte upper bound including schema and instructions. It may fit fewer than eight retrieved chunks. Omissions are disclosed and affect both comparison modes. Numerical truth and semantic support still depend on fallible model judgments; read [LIMITATIONS.md](LIMITATIONS.md).
-

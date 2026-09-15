@@ -73,6 +73,9 @@ def test_valid_responses_are_cached_but_invalid_responses_are_not(monkeypatch):
     assert len(calls) == 1 and client.usage["cache_hits"] == 1
     assert calls[0]["model"] == GEN_MODEL
     assert calls[0]["config"].tools is None
+    assert calls[0]["config"].response_schema is None
+    assert calls[0]["config"].response_json_schema == Draft.model_json_schema()
+    assert calls[0]["config"].automatic_function_calling.disable is True
 
 
 def test_truncated_output_is_rejected(monkeypatch):

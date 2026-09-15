@@ -19,8 +19,8 @@ This system checks evidence; it does not certify truth or guarantee prompt-injec
 
 ## Results that must not be claimed yet
 
-The five expected-behavior illustrations are manually authored. Unit tests inject controlled API responses. Neither establishes live model quality.
+Fallback expected-behavior illustrations are manually authored. Unit tests inject controlled API responses. Neither establishes live model quality. Three real API captures and all five embedding indexes now exist; captures have not received independent human review.
 
-Real embedding indexes, five live scenario captures, human label review, baseline/ablation outcomes, and hosted-browser acceptance need the owner's API and hosting setup. Do not claim research targets were met, 100% security, an online deployment, or independent human validation before those results exist.
+The online deployment exists at https://evidence-lab-rag.streamlit.app/. Two remaining live captures are blocked by the current free quota. Human label review, full baseline/ablation outcomes, and complete hosted-browser acceptance are pending. The baseline also resisted the captured injection example; that example establishes no relative attack-success reduction. Do not claim research targets were met, 100% security, or independent human validation.
 
 Targets remain: at least 50% relative attack-success reduction when baseline attacks succeed, at least 80% conflict and insufficiency recall, and no more than a 10-percentage-point clean-answer accuracy loss. Report sample counts, operational failures, false positives, and confidence limitations alongside results.

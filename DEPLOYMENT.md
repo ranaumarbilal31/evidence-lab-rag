@@ -8,7 +8,7 @@ Target: **Streamlit Community Cloud**, an HTTPS `streamlit.app` URL. The app mus
 - Streamlit Community Cloud sign-in with access to that repository. Any account/terms acceptance or access grants must be completed by the owner.
 - Gemini Free-tier credentials and active per-model limits. Billing remains disabled.
 
-No public deployment has been completed yet. There is no claimed public URL or live API result until the steps below are verified.
+The app is deployed at **https://evidence-lab-rag.streamlit.app/** from `ranaumarbilal31/evidence-lab-rag`, branch `main`, entrypoint `app.py`. See [RELEASE_STATUS.md](RELEASE_STATUS.md) for completed checks and pending acceptance work.
 
 ## Prepare and verify
 
@@ -20,7 +20,7 @@ No public deployment has been completed yet. There is no claimed public URL or l
 
 ## Publish
 
-In [Streamlit Community Cloud](https://share.streamlit.io/), create an app from the repository, branch, and entrypoint `app.py`. Select **Python 3.11** in advanced settings. Dependencies come from `requirements.txt`; development tools are unnecessary on the host.
+In [Streamlit Community Cloud](https://share.streamlit.io/), create an app from the repository, branch, and entrypoint `app.py`. Python 3.11 is the locally tested version. The deployed host used the default Python 3.14 selection and rendered successfully; the complete test suite has not been run on that host runtime. Dependencies come from `requirements.txt`; development tools are unnecessary on the host.
 
 Paste the configured secret values in Community Cloud **Secrets**, never into GitHub. Check that the Gemini key still belongs to a billing-disabled Free-tier project. Deploy and copy the actual assigned HTTPS URL. Do not invent a URL or present a local preview as the hosted result.
 
@@ -39,4 +39,3 @@ Community Cloud's filesystem is not durable. Demo embeddings and captures are ve
 - Confirm the public link works while the developer's computer is off.
 
 Free hosts may sleep and APIs may have outages; this is not an always-awake availability promise. Record the public URL and acceptance results in a release note only after they exist. If a release fails, redeploy the previous known-working commit with its compatible index/capture bundle. Check Community Cloud logs and Gemini quota dashboards for actual failures; no paid monitoring is required.
-
