@@ -2,6 +2,53 @@
 
 A free-API research demo comparing ordinary RAG with pipelines that screen retrieved evidence, quarantine suspected prompt injection, attempt bounded evidence recovery, and validate answers before release. **No local AI models and no automatic paid fallback.**
 
+## Why this exists
+
+Retrieval-Augmented Generation pulls text from documents the model didn't write and can't fully trust — a shared wiki page, an uploaded file, a scraped web page — straight into the context that produces the final answer. Anyone who can get content into that retrievable corpus can attempt **indirect prompt injection**: hiding an instruction inside a document, hoping the model follows it instead of answering the user's actual question. Ordinary RAG has no defense against this; it treats every retrieved chunk as equally trustworthy.
+
+This project asks a narrower, testable question: **can a lightweight, LLM-in-the-loop "Safety Wall" — detect the injected chunk, quarantine it, and then try to recover the fact that quarantining it cost the answer — meaningfully reduce attack success without meaningfully hurting ordinary answer quality?** It is not a claim of provable security (see [LIMITATIONS.md](LIMITATIONS.md)); it is a small, reproducible experiment with an honest scorecard.
+
+The evaluation framework (`rag/evaluation.py`) turns that into four concrete, measured questions, computed only from human-reviewed rows:
+
+1. Does detection reduce attack success relative to ordinary RAG, without a large loss in clean-question accuracy? (target: ≥50% relative attack-success reduction, ≤10 percentage points of clean-accuracy loss)
+2. Does adding bounded evidence recovery answer questions correctly that detect-and-block alone had to abstain on or get wrong?
+3. Does that recovery introduce new benign false positives (valid evidence wrongly excluded) that detect-and-block alone didn't have?
+4. What does recovery cost in latency?
+
+## How the Safety Wall works
+
+Every retrieved chunk passes through the same sequence before it can influence an answer:
+
+```
+retrieve  →  detect (heuristic regex + semantic classifier)
+          →  quarantine flagged chunks (deleted from context before generation ever sees them)
+          →  missing-fact analysis  (what did quarantining this chunk cost the question?)
+          →  bounded recovery       (ONE independent retrieval for the missing fact only —
+                                      never the original query, never the quarantined text —
+                                      excluding every quarantined/already-trusted id,
+                                      rejecting duplicates and anything the heuristic itself
+                                      would flag, and independently verifying whatever survives)
+          →  relevance / conflict / sufficiency checks (existing, unchanged)
+          →  decision: exactly one of answer / partial_answer / abstain
+          →  generate  →  citation validation (fails closed — never a "trust me" answer)
+```
+
+A quarantined chunk can never re-enter trusted evidence; recovery replaces the missing *fact*, never the malicious *document*. Three pipelines exercise this incrementally, over the same cases and the same cached retrieval, so they're directly comparable:
+
+| Pipeline | CLI mode | What it does |
+|---|---|---|
+| **Standard RAG** | `baseline` | No safety checks — the control condition. |
+| **Detect & Block** | `protected` | Detects and quarantines, then abstains if that leaves nothing to answer from. |
+| **Full Safety Wall** | `safety_wall` | Detect & Block, plus missing-fact analysis and bounded recovery. |
+
+The public app's pipeline selector (Standard RAG / Detect & Block / Full Safety Wall) lets you see this live, with a 9-stage expandable breakdown for Full Safety Wall: retrieved evidence, safety screening, quarantine, missing fact, evidence recovery, verified evidence, decision, final answer, and citation validation.
+
+## What's implemented and tested vs. what's still open
+
+Implemented and covered by automated tests (99 passing, no live API calls): detection (heuristic + classifier), quarantine, missing-fact analysis, bounded single-attempt recovery with duplicate rejection and independent verification, the deterministic answer/partial_answer/abstain decision layer, and citation validation that fails closed — including adversarial cases like a citation pointing at a quarantined chunk's own genuine text, and a quota error arriving after citations were already checked. See `tests/` for the full scenario list.
+
+Still open, and not to be claimed as done: independent human review of the 150-case dataset's expected labels, any human-scored development or held-out evaluation run (the four questions above have no numeric answer yet), and hosted acceptance testing. One known, disclosed, tested-but-unresolved gap: the fast heuristic layer can still misfire on benign text that literally quotes a trigger phrase (e.g. an educational example), because it runs before the semantic classifier gets a look. See [LIMITATIONS.md](LIMITATIONS.md) and [RELEASE_STATUS.md](RELEASE_STATUS.md) for the current, unvarnished status.
+
 ## Current state
 
 Public demo: **https://evidence-lab-rag.streamlit.app/**. Source: https://github.com/ranaumarbilal31/evidence-lab-rag.
