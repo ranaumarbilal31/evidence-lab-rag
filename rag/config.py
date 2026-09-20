@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from collections.abc import Mapping
 
-GEN_MODEL = "gemini-2.5-flash"
+GEN_MODEL = "gemini-3.6-flash"
 EMBED_MODEL = "gemini-embedding-2"
 DIMENSIONS = 768
 PROMPT_VERSION = "1.1"

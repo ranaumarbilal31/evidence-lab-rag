@@ -1,0 +1,895 @@
+[
+  {
+    "case_id": "1909.00694_q0",
+    "query": "What is the seed lexicon?",
+    "required_facts": [
+      "The seed lexicon consists of positive and negative predicates. If the predicate of an extracted event is in the seed lexicon and does not involve complex phenomena like negation, we assign the corresponding polarity score ($+1$ for positive events and $-1$ for negative events) to the event. We expect the model to automatically learn complex phenomena through label propagation. Based on the availability of scores and the types of discourse relations, we classify the extracted event pairs into the following three types."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s4_p1"
+    ],
+    "expected_answer": "a vocabulary of positive and negative predicates that helps determine the polarity score of an event",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q1",
+    "query": "What are the results?",
+    "required_facts": [
+      "As for ${\\rm Encoder}$, we compared two types of neural networks: BiGRU and BERT. GRU BIBREF16 is a recurrent neural network sequence encoder. BiGRU reads an input sequence forward and backward and the output is the concatenation of the final forward and backward hidden states.",
+      "We trained the model with the following four combinations of the datasets: AL, AL+CA+CO (two proposed models), ACP (supervised), and ACP+AL+CA+CO (semi-supervised). The corresponding objective functions were: $\\mathcal {L}_{\\rm AL}$, $\\mathcal {L}_{\\rm AL} + \\mathcal {L}_{\\rm CA} + \\mathcal {L}_{\\rm CO}$, $\\mathcal {L}_{\\rm ACP}$, and $\\mathcal {L}_{\\rm ACP} + \\mathcal {L}_{\\rm AL} + \\mathcal {L}_{\\rm CA} + \\mathcal {L}_{\\rm CO}$."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s13_p0",
+      "1909.00694_s13_p2"
+    ],
+    "expected_answer": "Using all data to train: AL -- BiGRU achieved 0.843 accuracy, AL -- BERT achieved 0.863 accuracy, AL+CA+CO -- BiGRU achieved 0.866 accuracy, AL+CA+CO -- BERT achieved 0.835, accuracy, ACP -- BiGRU achieved 0.919 accuracy, ACP -- BERT achived 0.933, accuracy, ACP+AL+CA+CO -- BiGRU achieved 0.917 accuracy, ACP+AL+CA+CO -- BERT achieved 0.913 accuracy. Using a subset to train: BERT achieved 0.876 accuracy using ACP (6K), BERT achieved 0.886 accuracy using ACP (6K) + AL, BiGRU achieved 0.830 accuracy using ACP (6K), BiGRU achieved 0.879 accuracy using ACP (6K) + AL + CA + CO.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q2",
+    "query": "How are relations used to propagate polarity?",
+    "required_facts": [
+      "In this paper, we propose a simple and effective method for learning affective events that only requires a very small seed lexicon and a large raw corpus. As illustrated in Figure FIGREF1, our key idea is that we can exploit discourse relations BIBREF4 to efficiently propagate polarity from seed predicates that directly report one's emotions (e.g., \u201cto be glad\u201d is positive). Suppose that events $x_1$ are $x_2$ are in the discourse relation of Cause (i.e., $x_1$ causes $x_2$). If the seed lexicon suggests $x_2$ is positive, $x_1$ is also likely to be positive because it triggers the positive emotion. The fact that $x_2$ is known to be negative indicates the negative polarity of $x_1$. Similarly, if $x_1$ and $x_2$ are in the discourse relation of Concession (i.e., $x_2$ in spite of $x_1$), the reverse of $x_2$'s polarity can be propagated to $x_1$. Even if $x_2$'s polarity is not known in advance, we can exploit the tendency of $x_1$ and $x_2$ to be of the same polarity (for Cause) or of the reverse polarity (for Concession) although the heuristic is not exempt from counterexamples. We transform this idea into objective functions and train neural network models that predict the polarity of a given event."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s0_p2"
+    ],
+    "expected_answer": "based on the relation between events, the suggested polarity of one event can determine the possible polarity of the other event",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q3",
+    "query": "How big is the Japanese data?",
+    "required_facts": [
+      "As a raw corpus, we used a Japanese web corpus that was compiled through the procedures proposed by BIBREF13. To extract event pairs tagged with discourse relations, we used the Japanese dependency parser KNP and in-house postprocessing scripts BIBREF14. KNP used hand-written rules to segment each sentence into what we conventionally called clauses (mostly consecutive text chunks), each of which contained one main predicate. KNP also identified the discourse relations of event pairs if explicit discourse connectives BIBREF4 such as \u201c\u306e\u3067\u201d (because) and \u201c\u306e\u306b\u201d (in spite of) were present. We treated Cause/Reason (\u539f\u56e0\u30fb\u7406\u7531) and Condition (\u6761\u4ef6) in the original tagset BIBREF15 as Cause and Concession (\u9006\u63a5) as Concession, respectively. Here is an example of event pair extraction.",
+      "We constructed our seed lexicon consisting of 15 positive words and 15 negative words, as shown in Section SECREF27. From the corpus of about 100 million sentences, we obtained 1.4 millions event pairs for AL, 41 millions for CA, and 6 millions for CO. We randomly selected subsets of AL event pairs such that positive and negative latter events were equal in size. We also sampled event pairs for each of CA and CO such that it was five times larger than AL. The results are shown in Table TABREF16.",
+      "We used the latest version of the ACP Corpus BIBREF12 for evaluation. It was used for (semi-)supervised training as well. Extracted from Japanese websites using HTML layouts and linguistic patterns, the dataset covered various genres. For example, the following two sentences were labeled positive and negative, respectively:",
+      "Although the ACP corpus was originally constructed in the context of sentiment analysis, we found that it could roughly be regarded as a collection of affective events. We parsed each sentence and extracted the last clause in it. The train/dev/test split of the data is shown in Table TABREF19."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s11_p0",
+      "1909.00694_s11_p4",
+      "1909.00694_s12_p0",
+      "1909.00694_s12_p5"
+    ],
+    "expected_answer": "7000000 pairs of events were extracted from the Japanese Web corpus, 529850 pairs of events were extracted from the ACP corpus",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q4",
+    "query": "What are labels available in dataset for supervision?",
+    "required_facts": [
+      "Affective events BIBREF0 are events that typically affect people in positive or negative ways. For example, getting money and playing sports are usually positive to the experiencers; catching cold and losing one's wallet are negative. Understanding affective events is important to various natural language processing (NLP) applications such as dialogue systems BIBREF1, question-answering systems BIBREF2, and humor recognition BIBREF3. In this paper, we work on recognizing the polarity of an affective event that is represented by a score ranging from $-1$ (negative) to 1 (positive)."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s0_p0"
+    ],
+    "expected_answer": "negative, positive",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q6",
+    "query": "How does their model learn using mostly raw data?",
+    "required_facts": [
+      "In this paper, we propose a simple and effective method for learning affective events that only requires a very small seed lexicon and a large raw corpus. As illustrated in Figure FIGREF1, our key idea is that we can exploit discourse relations BIBREF4 to efficiently propagate polarity from seed predicates that directly report one's emotions (e.g., \u201cto be glad\u201d is positive). Suppose that events $x_1$ are $x_2$ are in the discourse relation of Cause (i.e., $x_1$ causes $x_2$). If the seed lexicon suggests $x_2$ is positive, $x_1$ is also likely to be positive because it triggers the positive emotion. The fact that $x_2$ is known to be negative indicates the negative polarity of $x_1$. Similarly, if $x_1$ and $x_2$ are in the discourse relation of Concession (i.e., $x_2$ in spite of $x_1$), the reverse of $x_2$'s polarity can be propagated to $x_1$. Even if $x_2$'s polarity is not known in advance, we can exploit the tendency of $x_1$ and $x_2$ to be of the same polarity (for Cause) or of the reverse polarity (for Concession) although the heuristic is not exempt from counterexamples. We transform this idea into objective functions and train neural network models that predict the polarity of a given event."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s0_p2"
+    ],
+    "expected_answer": "by exploiting discourse relations to propagate polarity from seed predicates to final sentiment polarity",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q7",
+    "query": "How big is seed lexicon used for training?",
+    "required_facts": [
+      "We constructed our seed lexicon consisting of 15 positive words and 15 negative words, as shown in Section SECREF27. From the corpus of about 100 million sentences, we obtained 1.4 millions event pairs for AL, 41 millions for CA, and 6 millions for CO. We randomly selected subsets of AL event pairs such that positive and negative latter events were equal in size. We also sampled event pairs for each of CA and CO such that it was five times larger than AL. The results are shown in Table TABREF16."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s11_p4"
+    ],
+    "expected_answer": "30 words",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1909.00694_q8",
+    "query": "How large is raw corpus used for training?",
+    "required_facts": [
+      "As a raw corpus, we used a Japanese web corpus that was compiled through the procedures proposed by BIBREF13. To extract event pairs tagged with discourse relations, we used the Japanese dependency parser KNP and in-house postprocessing scripts BIBREF14. KNP used hand-written rules to segment each sentence into what we conventionally called clauses (mostly consecutive text chunks), each of which contained one main predicate. KNP also identified the discourse relations of event pairs if explicit discourse connectives BIBREF4 such as \u201c\u306e\u3067\u201d (because) and \u201c\u306e\u306b\u201d (in spite of) were present. We treated Cause/Reason (\u539f\u56e0\u30fb\u7406\u7531) and Condition (\u6761\u4ef6) in the original tagset BIBREF15 as Cause and Concession (\u9006\u63a5) as Concession, respectively. Here is an example of event pair extraction.",
+      "We constructed our seed lexicon consisting of 15 positive words and 15 negative words, as shown in Section SECREF27. From the corpus of about 100 million sentences, we obtained 1.4 millions event pairs for AL, 41 millions for CA, and 6 millions for CO. We randomly selected subsets of AL event pairs such that positive and negative latter events were equal in size. We also sampled event pairs for each of CA and CO such that it was five times larger than AL. The results are shown in Table TABREF16."
+    ],
+    "target_chunk_ids": [
+      "1909.00694_s11_p0",
+      "1909.00694_s11_p4"
+    ],
+    "expected_answer": "100 million sentences",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07723_q1",
+    "query": "How is the annotation experiment evaluated?",
+    "required_facts": [
+      "We find that Cohen $\\kappa $ agreement ranges from .84 for Uneasiness in the English data, .81 for Humor and Nostalgia, down to German Suspense (.65), Awe/Sublime (.61) and Vitality for both languages (.50 English, .63 German). Both annotators have a similar emotion frequency profile, where the ranking is almost identical, especially for German. However, for English, Annotator 2 annotates more Vitality than Uneasiness. Figure FIGREF18 shows the confusion matrices of labels between annotators as heatmaps. Notably, Beauty/Joy and Sadness are confused across annotators more often than other labels. This is topical for poetry, and therefore not surprising: One might argue that the beauty of beings and situations is only beautiful because it is not enduring and therefore not to divorce from the sadness of the vanishing of beauty BIBREF48. We also find considerable confusion of Sadness with Awe/Sublime and Vitality, while the latter is also regularly confused with Beauty/Joy."
+    ],
+    "target_chunk_ids": [
+      "2003.07723_s13_p1"
+    ],
+    "expected_answer": "confusion matrices of labels between annotators",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07723_q2",
+    "query": "What are the aesthetic emotions formalized?",
+    "required_facts": [
+      "To emotionally move readers is considered a prime goal of literature since Latin antiquity BIBREF1, BIBREF2, BIBREF3. Deeply moved readers shed tears or get chills and goosebumps even in lab settings BIBREF4. In cases like these, the emotional response actually implies an aesthetic evaluation: narratives that have the capacity to move readers are evaluated as good and powerful texts for this very reason. Similarly, feelings of suspense experienced in narratives not only respond to the trajectory of the plot's content, but are also directly predictive of aesthetic liking (or disliking). Emotions that exhibit this dual capacity have been defined as \u201caesthetic emotions\u201d BIBREF2. Contrary to the negativity bias of classical emotion catalogues, emotion terms used for aesthetic evaluation purposes include far more positive than negative emotions. At the same time, many overall positive aesthetic emotions encompass negative or mixed emotional ingredients BIBREF2, e.g., feelings of suspense include both hopeful and fearful anticipations."
+    ],
+    "target_chunk_ids": [
+      "2003.07723_s3_p1"
+    ],
+    "expected_answer": "feelings of suspense experienced in narratives not only respond to the trajectory of the plot's content, but are also directly predictive of aesthetic liking (or disliking), Emotions that exhibit this dual capacity have been defined as \u201caesthetic emotions\u201d",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1705.09665_q0",
+    "query": "Do they report results only on English data?",
+    "required_facts": [
+      "Our full dataset consists of all subreddits on Reddit from January 2013 to December 2014, for which there are at least 500 words in the vocabulary used to estimate our measures, in at least 4 months of the subreddit's history. We compute our measures over the comments written by users in a community in time windows of months, for each sufficiently active month, and manually remove communities where the bulk of the contributions are in a foreign language. This results in 283 communities ( INLINEFORM0 ), for a total of 4,872 community-months ( INLINEFORM1 )."
+    ],
+    "target_chunk_ids": [
+      "1705.09665_s5_p3"
+    ],
+    "expected_answer": "no",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1705.09665_q1",
+    "query": "How do the various social phenomena examined manifest in different types of communities?",
+    "required_facts": [
+      "We find that dynamic communities, such as Seahawks or starcraft, have substantially higher rates of monthly user retention than more stable communities (Spearman's INLINEFORM0 = 0.70, INLINEFORM1 0.001, computed with community points averaged over months; Figure FIGREF11 .A, left). Similarly, more distinctive communities, like Cooking and Naruto, exhibit moderately higher monthly retention rates than more generic communities (Spearman's INLINEFORM2 = 0.33, INLINEFORM3 0.001; Figure FIGREF11 .A, right).",
+      "As with monthly retention, we find a strong positive relationship between a community's dynamicity and the average number of months that a user will stay in that community (Spearman's INLINEFORM0 = 0.41, INLINEFORM1 0.001, computed over all community points; Figure FIGREF11 .B, left). This verifies that the short-term trend observed for monthly retention translates into longer-term engagement and suggests that long-term user retention might be strongly driven by the extent to which a community continually provides novel content. Interestingly, there is no significant relationship between distinctiveness and long-term engagement (Spearman's INLINEFORM2 = 0.03, INLINEFORM3 0.77; Figure FIGREF11 .B, right). Thus, while highly distinctive communities like RandomActsOfMakeup may generate focused commitment from users over a short period of time, such communities are unlikely to retain long-term users unless they also have sufficiently dynamic content."
+    ],
+    "target_chunk_ids": [
+      "1705.09665_s7_p0",
+      "1705.09665_s8_p0"
+    ],
+    "expected_answer": "Dynamic communities have substantially higher rates of monthly user retention than more stable communities. More distinctive communities exhibit moderately higher monthly retention rates than more generic communities. There is also a strong positive relationship between a community's dynamicity and the average number of months that a user will stay in that community - a short-term trend observed for monthly retention translates into longer-term engagement and suggests that long-term user retention might be strongly driven by the extent to which a community continually provides novel content.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1705.09665_q2",
+    "query": "What patterns do they observe about how user engagement varies with the characteristics of a community?",
+    "required_facts": [
+      "Engagement and community identity. We apply our framework to understand how two important aspects of user engagement in a community\u2014the community's propensity to retain its users (Section SECREF3 ), and its permeability to new members (Section SECREF4 )\u2014vary according to the type of collective identity it fosters. We find that communities that are characterized by specialized, constantly-updating content have higher user retention rates, but also exhibit larger linguistic gaps that separate newcomers from established members.",
+      "More closely examining factors that could contribute to this linguistic gap, we find that especially within distinctive communities, established users have an increased propensity to engage with the community's specialized content, compared to newcomers (Section SECREF5 ). Interestingly, while established members of distinctive communities more avidly respond to temporal updates than newcomers, in more generic communities it is the outsiders who engage more with volatile content, perhaps suggesting that such content may serve as an entry-point to the community (but not necessarily a reason to stay). Such insights into the relation between collective identity and user engagement can be informative to community maintainers seeking to better understand growth patterns within their online communities."
+    ],
+    "target_chunk_ids": [
+      "1705.09665_s0_p9",
+      "1705.09665_s0_p10"
+    ],
+    "expected_answer": "communities that are characterized by specialized, constantly-updating content have higher user retention rates, but also exhibit larger linguistic gaps that separate newcomers from established members, within distinctive communities, established users have an increased propensity to engage with the community's specialized content, compared to newcomers",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1705.09665_q3",
+    "query": "How did the select the 300 Reddit communities for comparison?",
+    "required_facts": [
+      "Our full dataset consists of all subreddits on Reddit from January 2013 to December 2014, for which there are at least 500 words in the vocabulary used to estimate our measures, in at least 4 months of the subreddit's history. We compute our measures over the comments written by users in a community in time windows of months, for each sufficiently active month, and manually remove communities where the bulk of the contributions are in a foreign language. This results in 283 communities ( INLINEFORM0 ), for a total of 4,872 community-months ( INLINEFORM1 )."
+    ],
+    "target_chunk_ids": [
+      "1705.09665_s5_p3"
+    ],
+    "expected_answer": "They selected all the subreddits from January 2013 to December 2014 with at least 500 words in the vocabulary and at least 4 months of the subreddit's history. They also removed communities with the bulk of the contributions are in foreign language.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1705.09665_q4",
+    "query": "How do the authors measure how temporally dynamic a community is?",
+    "required_facts": [
+      "Dynamicity. A highly dynamic community constantly shifts interests from one time window to another, and these temporal variations are reflected in its use of volatile language. Formally, we define the dynamicity of a community INLINEFORM0 as the average volatility of all utterances in INLINEFORM1 . We refer to a community whose language is relatively consistent throughout time as being stable."
+    ],
+    "target_chunk_ids": [
+      "1705.09665_s4_p2"
+    ],
+    "expected_answer": "the average volatility of all utterances",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1705.09665_q5",
+    "query": "How do the authors measure how distinctive a community is?",
+    "required_facts": [
+      "Distinctiveness. A community with a very distinctive identity will tend to have distinctive interests, expressed through specialized language. Formally, we define the distinctiveness of a community INLINEFORM0 as the average specificity of all utterances in INLINEFORM1 . We refer to a community with a less distinctive identity as being generic."
+    ],
+    "target_chunk_ids": [
+      "1705.09665_s4_p1"
+    ],
+    "expected_answer": "the average specificity of all utterances",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q0",
+    "query": "What data is the language model pretrained on?",
+    "required_facts": [
+      "To implement deep neural network models, we utilize the Keras library BIBREF36 with TensorFlow BIBREF37 backend. Each model is run on a single NVIDIA GeForce GTX 1080 Ti GPU. The models are trained by Adam optimization algorithm BIBREF38 whose parameters are the same as the default settings except for learning rate set to $5\\times 10^{-5}$. Batch size is set to 3 or 4 due to the lack of graphical memory. We select BERT-base as the pre-trained language model in this paper. Due to the high cost of pre-training BERT language model, we directly adopt parameters pre-trained by Google in Chinese general corpus. The named entity recognition is applied on both pathology report texts and query texts."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s12_p0"
+    ],
+    "expected_answer": "Chinese general corpus",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q1",
+    "query": "What baselines is the proposed model compared against?",
+    "required_facts": [
+      "Experimental Studies ::: Comparison with State-of-the-art Methods",
+      "Since BERT has already achieved the state-of-the-art performance of question-answering, in this section we compare our proposed model with state-of-the-art question answering models (i.e. QANet BIBREF39) and BERT-Base BIBREF26. As BERT has two versions: BERT-Base and BERT-Large, due to the lack of computational resource, we can only compare with BERT-Base model instead of BERT-Large. Prediction layer is attached at the end of the original BERT-Base model and we fine tune it on our dataset. In this section, the named entity integration method is chosen to pure concatenation (Concatenate the named entity information on pathology report text and query text first and then concatenate contextualized representation and concatenated named entity information). Comparative results are summarized in Table TABREF23."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s13_p0"
+    ],
+    "expected_answer": "BERT-Base, QANet",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q2",
+    "query": "How is the clinical text structuring task defined?",
+    "required_facts": [
+      "Clinical text structuring (CTS) is a critical task for fetching medical research data from electronic health records (EHRs), where structural patient medical data, such as whether the patient has specific symptoms, diseases, or what the tumor size is, how far from the tumor is cut at during the surgery, or what the specific laboratory test result is, are obtained. It is important to extract structured data from clinical text because bio-medical systems or bio-medical researches greatly rely on structured data but they cannot obtain them directly. In addition, clinical text often contains abundant healthcare information. CTS is able to provide large-scale extracted structured data for enormous down-stream clinical researches.",
+      "To reduce the pipeline depth and break the barrier of non-uniform output formats, we present a question answering based clinical text structuring (QA-CTS) task (see Fig. FIGREF1). Unlike the traditional CTS task, our QA-CTS task aims to discover the most related text from original paragraph text. For some cases, it is already the final answer in deed (e.g., extracting sub-string). While for other cases, it needs several steps to obtain the final answer, such as entity names conversion and negative words recognition. Our presented QA-CTS task unifies the output format of the traditional CTS task and make the training data shareable, thus enriching the training data. The main contributions of this work can be summarized as follows."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s0_p0",
+      "1908.06606_s0_p3"
+    ],
+    "expected_answer": "Clinical text structuring (CTS) is a critical task for fetching medical research data from electronic health records (EHRs), where structural patient medical data, such as whether the patient has specific symptoms, diseases, or what the tumor size is, how far from the tumor is cut at during the surgery, or what the specific laboratory test result is, are obtained., Unlike the traditional CTS task, our QA-CTS task aims to discover the most related text from original paragraph text.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q3",
+    "query": "What are the specific tasks being unified?",
+    "required_facts": [
+      "To reduce the pipeline depth and break the barrier of non-uniform output formats, we present a question answering based clinical text structuring (QA-CTS) task (see Fig. FIGREF1). Unlike the traditional CTS task, our QA-CTS task aims to discover the most related text from original paragraph text. For some cases, it is already the final answer in deed (e.g., extracting sub-string). While for other cases, it needs several steps to obtain the final answer, such as entity names conversion and negative words recognition. Our presented QA-CTS task unifies the output format of the traditional CTS task and make the training data shareable, thus enriching the training data. The main contributions of this work can be summarized as follows.",
+      "Our dataset is annotated based on Chinese pathology reports provided by the Department of Gastrointestinal Surgery, Ruijin Hospital. It contains 17,833 sentences, 826,987 characters and 2,714 question-answer pairs. All question-answer pairs are annotated and reviewed by four clinicians with three types of questions, namely tumor size, proximal resection margin and distal resection margin. These annotated instances have been partitioned into 1,899 training instances (12,412 sentences) and 815 test instances (5,421 sentences). Each instance has one or several sentences. Detailed statistics of different types of entities are listed in Table TABREF20.",
+      "In this paper, we present a question answering based clinical text structuring (QA-CTS) task, which unifies different clinical text structuring tasks and utilize different datasets. A novel model is also proposed to integrate named entity information into a pre-trained language model and adapt it to QA-CTS task. Initially, sequential results of named entity recognition on both paragraph and query texts are integrated together. Contextualized representation on both paragraph and query texts are transformed by a pre-trained language model. Then, the integrated named entity information and contextualized representation are integrated together and fed into a feed forward network for final prediction. Experimental results on real-world dataset demonstrate that our proposed model competes favorably with strong baseline models in all three specific tasks. The shared task and shared model introduced by QA-CTS task has also been proved to be useful for improving the performance on most of the task-specific datasets. In conclusion, the best way to achieve the best performance for a specific dataset is to pre-train the model in multiple datasets and then fine tune it on the specific dataset."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s0_p3",
+      "1908.06606_s11_p0",
+      "1908.06606_s17_p0"
+    ],
+    "expected_answer": "three types of questions, namely tumor size, proximal resection margin and distal resection margin",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q4",
+    "query": "Is all text in this dataset a question, or are there unrelated sentences in between questions?",
+    "required_facts": [
+      "Our dataset is annotated based on Chinese pathology reports provided by the Department of Gastrointestinal Surgery, Ruijin Hospital. It contains 17,833 sentences, 826,987 characters and 2,714 question-answer pairs. All question-answer pairs are annotated and reviewed by four clinicians with three types of questions, namely tumor size, proximal resection margin and distal resection margin. These annotated instances have been partitioned into 1,899 training instances (12,412 sentences) and 815 test instances (5,421 sentences). Each instance has one or several sentences. Detailed statistics of different types of entities are listed in Table TABREF20."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s11_p0"
+    ],
+    "expected_answer": "the dataset consists of pathology reports including sentences and questions and answers about tumor size and resection margins so it does include additional sentences",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q5",
+    "query": "How many questions are in the dataset?",
+    "required_facts": [
+      "Our dataset is annotated based on Chinese pathology reports provided by the Department of Gastrointestinal Surgery, Ruijin Hospital. It contains 17,833 sentences, 826,987 characters and 2,714 question-answer pairs. All question-answer pairs are annotated and reviewed by four clinicians with three types of questions, namely tumor size, proximal resection margin and distal resection margin. These annotated instances have been partitioned into 1,899 training instances (12,412 sentences) and 815 test instances (5,421 sentences). Each instance has one or several sentences. Detailed statistics of different types of entities are listed in Table TABREF20."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s11_p0"
+    ],
+    "expected_answer": "2,714",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q6",
+    "query": "What is the perWhat are the tasks evaluated?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q7",
+    "query": "Are there privacy concerns with clinical data?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q8",
+    "query": "How they introduce domain-specific features into pre-trained language model?",
+    "required_facts": [
+      "We first present a question answering based clinical text structuring (QA-CTS) task, which unifies different specific tasks and make dataset shareable. We also propose an effective model to integrate clinical named entity information into pre-trained language model.",
+      "In this section, we present an effective model for the question answering based clinical text structuring (QA-CTS). As shown in Fig. FIGREF8, paragraph text $X$ is first passed to a clinical named entity recognition (CNER) model BIBREF12 to capture named entity information and obtain one-hot CNER output tagging sequence for query text $I_{nq}$ and paragraph text $I_{nt}$ with BIEOS (Begin, Inside, End, Outside, Single) tag scheme. $I_{nq}$ and $I_{nt}$ are then integrated together into $I_n$. Meanwhile, the paragraph text $X$ and query text $Q$ are organized and passed to contextualized representation model which is pre-trained language model BERT BIBREF26 here to obtain the contextualized representation vector $V_s$ of both text and query. Afterwards, $V_s$ and $I_n$ are integrated together and fed into a feed forward network to calculate the start and end index of answer-related text. Here we define this calculation problem as a classification for each word to be the start or end word."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s0_p4",
+      "1908.06606_s4_p0"
+    ],
+    "expected_answer": "integrate clinical named entity information into pre-trained language model",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q9",
+    "query": "How big is QA-CTS task dataset?",
+    "required_facts": [
+      "Our dataset is annotated based on Chinese pathology reports provided by the Department of Gastrointestinal Surgery, Ruijin Hospital. It contains 17,833 sentences, 826,987 characters and 2,714 question-answer pairs. All question-answer pairs are annotated and reviewed by four clinicians with three types of questions, namely tumor size, proximal resection margin and distal resection margin. These annotated instances have been partitioned into 1,899 training instances (12,412 sentences) and 815 test instances (5,421 sentences). Each instance has one or several sentences. Detailed statistics of different types of entities are listed in Table TABREF20."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s11_p0"
+    ],
+    "expected_answer": "17,833 sentences, 826,987 characters and 2,714 question-answer pairs",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q10",
+    "query": "How big is dataset of pathology reports collected from Ruijing Hospital?",
+    "required_facts": [
+      "Our dataset is annotated based on Chinese pathology reports provided by the Department of Gastrointestinal Surgery, Ruijin Hospital. It contains 17,833 sentences, 826,987 characters and 2,714 question-answer pairs. All question-answer pairs are annotated and reviewed by four clinicians with three types of questions, namely tumor size, proximal resection margin and distal resection margin. These annotated instances have been partitioned into 1,899 training instances (12,412 sentences) and 815 test instances (5,421 sentences). Each instance has one or several sentences. Detailed statistics of different types of entities are listed in Table TABREF20."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s11_p0"
+    ],
+    "expected_answer": "17,833 sentences, 826,987 characters and 2,714 question-answer pairs",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1908.06606_q11",
+    "query": "What are strong baseline models in specific tasks?",
+    "required_facts": [
+      "Since BERT has already achieved the state-of-the-art performance of question-answering, in this section we compare our proposed model with state-of-the-art question answering models (i.e. QANet BIBREF39) and BERT-Base BIBREF26. As BERT has two versions: BERT-Base and BERT-Large, due to the lack of computational resource, we can only compare with BERT-Base model instead of BERT-Large. Prediction layer is attached at the end of the original BERT-Base model and we fine tune it on our dataset. In this section, the named entity integration method is chosen to pure concatenation (Concatenate the named entity information on pathology report text and query text first and then concatenate contextualized representation and concatenated named entity information). Comparative results are summarized in Table TABREF23."
+    ],
+    "target_chunk_ids": [
+      "1908.06606_s13_p0"
+    ],
+    "expected_answer": "state-of-the-art question answering models (i.e. QANet BIBREF39) and BERT-Base BIBREF26",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1811.00942_q0",
+    "query": "What aspects have been compared between various language models?",
+    "required_facts": [
+      "For each model, we examined word-level perplexity, R@3 in next-word prediction, latency (ms/q), and energy usage (mJ/q). To explore the perplexity\u2013recall relationship, we collected individual perplexity and recall statistics for each sentence in the test set."
+    ],
+    "target_chunk_ids": [
+      "1811.00942_s2_p2"
+    ],
+    "expected_answer": "Quality measures using perplexity and recall, and performance measured using latency and energy usage.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1811.00942_q1",
+    "query": "what classic language models are mentioned in the paper?",
+    "required_facts": [
+      "In this paper, we examine the quality\u2013performance tradeoff in the shift from non-neural to neural language models. In particular, we compare Kneser\u2013Ney smoothing, widely accepted as the state of the art prior to NLMs, to the best NLMs today. The decrease in perplexity on standard datasets has been well documented BIBREF3 , but to our knowledge no one has examined the performances tradeoffs. With deployment on a mobile device in mind, we evaluate energy usage and inference latency on a Raspberry Pi (which shares the same ARM architecture as nearly all smartphones today). We find that a 2.5 $\\times $ reduction in perplexity on PTB comes at a staggering cost in terms of performance: inference with NLMs takes 49 $\\times $ longer and requires 32 $\\times $ more energy. Furthermore, we find that impressive reductions in perplexity translate into at best modest improvements in next-word prediction, which is arguable a better metric for evaluating software keyboards on a smartphone. The contribution of this paper is the first known elucidation of this quality\u2013performance tradeoff. Note that we refrain from prescriptive recommendations: whether or not a tradeoff is worthwhile depends on the application. Nevertheless, NLP engineers should arguably keep these tradeoffs in mind when selecting a particular operating point."
+    ],
+    "target_chunk_ids": [
+      "1811.00942_s0_p4"
+    ],
+    "expected_answer": "Kneser\u2013Ney smoothing",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1811.00942_q2",
+    "query": "What is a commonly used evaluation metric for language models?",
+    "required_facts": [
+      "Deep learning has unquestionably advanced the state of the art in many natural language processing tasks, from syntactic dependency parsing BIBREF0 to named-entity recognition BIBREF1 to machine translation BIBREF2 . The same certainly applies to language modeling, where recent advances in neural language models (NLMs) have led to dramatically better approaches as measured using standard metrics such as perplexity BIBREF3 , BIBREF4 ."
+    ],
+    "target_chunk_ids": [
+      "1811.00942_s0_p0"
+    ],
+    "expected_answer": "perplexity",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1805.02400_q0",
+    "query": "Which dataset do they use a starting point in generating fake reviews?",
+    "required_facts": [
+      "We use the Yelp Challenge dataset BIBREF2 for our fake review generation. The dataset (Aug 2017) contains 2.9 million 1 \u20135 star restaurant reviews. We treat all reviews as genuine human-written reviews for the purpose of this work, since wide-scale deployment of machine-generated review attacks are not yet reported (Sep 2017) BIBREF19 . As preprocessing, we remove non-printable (non-ASCII) characters and excessive white-space. We separate punctuation from words. We reserve 15,000 reviews for validation and 3,000 for testing, and the rest we use for training. NMT models require a parallel corpus of source and target sentences, i.e. a large set of (source, target)-pairs. We set up a parallel corpus by constructing (context, review)-pairs from the dataset. Next, we describe how we created our input context."
+    ],
+    "target_chunk_ids": [
+      "1805.02400_s4_p3"
+    ],
+    "expected_answer": "the Yelp Challenge dataset",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1805.02400_q2",
+    "query": "How does using NMT ensure generated reviews stay on topic?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1805.02400_q3",
+    "query": "What kind of model do they use for detection?",
+    "required_facts": [
+      "We developed an AdaBoost-based classifier to detect our new fake reviews, consisting of 200 shallow decision trees (depth 2). The features we used are recorded in Table~\\ref{table:features_adaboost} (Appendix)."
+    ],
+    "target_chunk_ids": [
+      "1805.02400_s4_p282"
+    ],
+    "expected_answer": "AdaBoost-based classifier",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1805.02400_q4",
+    "query": "Does their detection tool work better than human detection?",
+    "required_facts": [
+      "We noticed some variation in the detection of different fake review categories. The respondents in our MTurk survey had most difficulties recognizing reviews of category $(b=0.3, \\lambda=-5)$, where true positive rate was $40.4\\%$, while the true negative rate of the real class was $62.7\\%$. The precision were $16\\%$ and $86\\%$, respectively. The class-averaged F-score is $47.6\\%$, which is close to random. Detailed classification reports are shown in Table~\\ref{table:MTurk_sub} in Appendix. Our MTurk-study shows that \\emph{our NMT-Fake reviews pose a significant threat to review systems}, since \\emph{ordinary native English-speakers have very big difficulties in separating real reviews from fake reviews}. We use the review category $(b=0.3, \\lambda=-5)$ for future user tests in this paper, since MTurk participants had most difficulties detecting these reviews. We refer to this category as NMT-Fake* in this paper.",
+      "Figure~\\ref{fig:adaboost_matrix_b_lambda} shows our AdaBoost classifier's class-averaged F-score at detecting different kind of fake reviews. The classifier is very effective in detecting reviews that humans have difficulties detecting. For example, the fake reviews MTurk users had most difficulty detecting ($b=0.3, \\lambda=-5$) are detected with an excellent 97\\% F-score."
+    ],
+    "target_chunk_ids": [
+      "1805.02400_s4_p204",
+      "1805.02400_s4_p296"
+    ],
+    "expected_answer": "yes",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1805.02400_q5",
+    "query": "How many reviews in total (both generated and true) do they evaluate on Amazon Mechanical Turk?",
+    "required_facts": [
+      "We first investigated overall detection of any NMT-Fake reviews (1,006 fake reviews and 994 real reviews). We found that the participants had big difficulties in detecting our fake reviews. In average, the reviews were detected with class-averaged \\emph{F-score of only 56\\%}, with 53\\% F-score for fake review detection and 59\\% F-score for real review detection. The results are very close to \\emph{random detection}, where precision, recall and F-score would each be 50\\%. Results are recorded in Table~\\ref{table:MTurk_super}. Overall, the fake review generation is very successful, since human detection rate across categories is close to random."
+    ],
+    "target_chunk_ids": [
+      "1805.02400_s4_p185"
+    ],
+    "expected_answer": "1,006 fake reviews and 994 real reviews",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1907.05664_q0",
+    "query": "Which baselines did they compare?",
+    "required_facts": [
+      "We present in this section the baseline model from See et al. See2017 trained on the CNN/Daily Mail dataset. We reproduce the results from See et al. See2017 to then apply LRP on it.",
+      "The baseline model is a deep sequence-to-sequence encoder/decoder model with attention. The encoder is a bidirectional Long-Short Term Memory(LSTM) cell BIBREF14 and the decoder a single LSTM cell with attention mechanism. The attention mechanism is computed as in BIBREF9 and we use a greedy search for decoding. We train end-to-end including the words embeddings. The embedding size used is of 128 and the hidden state size of the LSTM cells is of 254."
+    ],
+    "target_chunk_ids": [
+      "1907.05664_s1_p0",
+      "1907.05664_s3_p0"
+    ],
+    "expected_answer": "The baseline model is a deep sequence-to-sequence encoder/decoder model with attention. The encoder is a bidirectional Long-Short Term Memory(LSTM) cell BIBREF14 and the decoder a single LSTM cell with attention mechanism. The attention mechanism is computed as in BIBREF9 and we use a greedy search for decoding. We train end-to-end including the words embeddings. The embedding size used is of 128 and the hidden state size of the LSTM cells is of 254.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1907.05664_q1",
+    "query": "How many attention layers are there in their model?",
+    "required_facts": [
+      "The baseline model is a deep sequence-to-sequence encoder/decoder model with attention. The encoder is a bidirectional Long-Short Term Memory(LSTM) cell BIBREF14 and the decoder a single LSTM cell with attention mechanism. The attention mechanism is computed as in BIBREF9 and we use a greedy search for decoding. We train end-to-end including the words embeddings. The embedding size used is of 128 and the hidden state size of the LSTM cells is of 254."
+    ],
+    "target_chunk_ids": [
+      "1907.05664_s3_p0"
+    ],
+    "expected_answer": "one",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1907.05664_q2",
+    "query": "Is the explanation from saliency map correct?",
+    "required_facts": [
+      "We showed that in some cases the saliency maps are truthful to the network's computation, meaning that they do highlight the input features that the network focused on. But we also showed that in some cases the saliency maps seem to not capture the important input features. This brought us to discuss the fact that these attributions are not sufficient by themselves, and that we need to define the counter-factual case and test it to measure how truthful the saliency maps are.",
+      "The second observation we can make is that the saliency map doesn't seem to highlight the right things in the input for the summary it generates. The saliency maps on Figure 3 correspond to the summary from Figure 1 , and we don't see the word \u201cvideo\" highlighted in the input text, which seems to be important for the output."
+    ],
+    "target_chunk_ids": [
+      "1907.05664_s11_p2",
+      "1907.05664_s9_p2"
+    ],
+    "expected_answer": "no",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1910.14497_q0",
+    "query": "How is embedding quality assessed?",
+    "required_facts": [
+      "We evaluate our framework on fastText embeddings trained on Wikipedia (2017), UMBC webbase corpus and statmt.org news dataset (16B tokens) BIBREF11. For simplicity, only the first 22000 words are used in all embeddings, though preliminary results indicate the findings extend to the full corpus. For our novel methods of mitigating bias, a shallow neural network is used to adjust the embedding. The single layer of the model is an embedding layer with weights initialized to those of the original embedding. For the composite method, these weights are initialized to those of the embedding after probabilistic bias mitigation. A batch of word indices is fed into the model, which are then embedded and for which a loss value is calculated, allowing back-propagation to adjust the embeddings. For each of the models, a fixed number of iterations is used to prevent overfitting, which can eventually hurt performance on the embedding benchmarks (See Figure FIGREF12). We evaluated the embedding after 1000 iterations, and stopped training if performance on a benchmark decreased significantly.",
+      "We construct a list of candidate words to debias, taken from the words used in the WEAT gender bias statistics. Words in this list should be gender neutral, and are related to the topics of career, arts, science, math, family and professions (see appendix). We note that this list can easily be expanded to include a greater proportion of words in the corpus. For example, BIBREF4 suggested a method for identifying inappropriately gendered words using unsupervised learning.",
+      "We compare this method of bias mitigation with the no bias mitigation (\"Orig\"), geometric bias mitigation (\"Geo\"), the two pieces of our method alone (\"Prob\" and \"KNN\") and the composite method (\"KNN+Prob\"). We note that the composite method performs reasonably well according the the RIPA metric, and much better than traditional geometric bias mitigation according to the neighborhood metric, without significant performance loss according to the accepted benchmarks. To our knowledge this is the first bias mitigation method to perform reasonably both on both metrics."
+    ],
+    "target_chunk_ids": [
+      "1910.14497_s8_p0",
+      "1910.14497_s8_p1",
+      "1910.14497_s8_p2"
+    ],
+    "expected_answer": "We compare this method of bias mitigation with the no bias mitigation (\"Orig\"), geometric bias mitigation (\"Geo\"), the two pieces of our method alone (\"Prob\" and \"KNN\") and the composite method (\"KNN+Prob\"). We note that the composite method performs reasonably well according the the RIPA metric, and much better than traditional geometric bias mitigation according to the neighborhood metric, without significant performance loss according to the accepted benchmarks. To our knowledge this is the first bias mitigation method to perform reasonably both on both metrics.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1910.14497_q1",
+    "query": "What are the three measures of bias which are reduced in experiments?",
+    "required_facts": [
+      "Geometric bias mitigation uses the cosine distances between words to both measure and remove gender bias BIBREF0. This method implicitly defines bias as a geometric asymmetry between words when projected onto a subspace, such as the gender subspace constructed from a set of gender pairs such as $\\mathcal {P} = \\lbrace (he,she),(man,woman),(king,queen)...\\rbrace $. The projection of a vector $v$ onto $B$ (the subspace) is defined by $v_B = \\sum _{j=1}^{k} (v \\cdot b_j) b_j$ where a subspace $B$ is defined by k orthogonal unit vectors $B = {b_1,...,b_k}$.",
+      "The WEAT statistic BIBREF1 demonstrates the presence of biases in word embeddings with an effect size defined as the mean test statistic across the two word sets:",
+      "Where $s$, the test statistic, is defined as: $s(w,A,B) = mean_{a \\in A} cos(w,a) - mean_{b \\in B} cos(w,a)$, and $X$,$Y$,$A$, and $B$ are groups of words for which the association is measured. Possible values range from $-2$ to 2 depending on the association of the words groups, and a value of zero indicates $X$ and $Y$ are equally associated with $A$ and $B$. See BIBREF4 for further details on WEAT.",
+      "The RIPA (relational inner product association) metric was developed as an alternative to WEAT, with the critique that WEAT is likely to overestimate the bias of a target attribute BIBREF4. The RIPA metric formalizes the measure of bias used in geometric bias mitigation as the inner product association of a word vector $v$ with respect to a relation vector $b$. The relation vector is constructed from the first principal component of the differences between gender word pairs. We report the absolute value of the RIPA metric as the value can be positive or negative according to the direction of the bias. A value of zero indicates a lack of bias, and the value is bound by $[-||w||,||w||]$.",
+      "The neighborhood bias metric proposed by BIBREF5 quantifies bias as the proportion of male socially-biased words among the $k$ nearest socially-biased male and female neighboring words, whereby biased words are obtained by projecting neutral words onto a gender relation vector. As we only examine the target word among the 1000 most socially-biased words in the vocabulary (500 male and 500 female), a word\u2019s bias is measured as the ratio of its neighborhood of socially-biased male and socially-biased female words, so that a value of 0.5 in this metric would indicate a perfectly unbiased word, and values closer to 0 and 1 indicate stronger bias."
+    ],
+    "target_chunk_ids": [
+      "1910.14497_s1_p0",
+      "1910.14497_s2_p0",
+      "1910.14497_s2_p1",
+      "1910.14497_s3_p0",
+      "1910.14497_s4_p0"
+    ],
+    "expected_answer": "RIPA, Neighborhood Metric, WEAT",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1910.14497_q2",
+    "query": "What are the probabilistic observations which contribute to the more robust algorithm?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1912.02481_q0",
+    "query": "What turn out to be more important high volume or high quality data?",
+    "required_facts": [
+      "The Spearman $\\rho $ correlation for fastText models on the curated small dataset (clean), C1, improves the baselines by a large margin ($\\rho =0.354$ for Twi and 0.322 for Yor\u00f9b\u00e1) even with a small dataset. The improvement could be justified just by the larger vocabulary in Twi, but in the case of Yor\u00f9b\u00e1 the enhancement is there with almost half of the vocabulary size. We found out that adding some noisy texts (C2 dataset) slightly improves the correlation for Twi language but not for the Yor\u00f9b\u00e1 language. The Twi language benefits from Wikipedia articles because its inclusion doubles the vocabulary and reduces the bias of the model towards religious texts. However, for Yor\u00f9b\u00e1, noisy texts often ignore diacritics or tonal marks which increases the vocabulary size at the cost of an increment in the ambiguity too. As a result, the correlation is slightly hurt. One would expect that training with more data would improve the quality of the embeddings, but we found out with the results obtained with the C3 dataset, that only high-quality data helps. The addition of JW300 boosts the vocabulary in both cases, but whereas for Twi the corpus mixes dialects and is noisy, for Yor\u00f9b\u00e1 it is very clean and with full diacritics. Consequently, the best embeddings for Yor\u00f9b\u00e1 are obtained when training with the C3 dataset, whereas for Twi, C2 is the best option. In both cases, the curated embeddings improve the correlation with human judgements on the similarity task a $\\Delta \\rho =+0.25$ or, equivalently, by an increment on $\\rho $ of 170% (Twi) and 180% (Yor\u00f9b\u00e1)."
+    ],
+    "target_chunk_ids": [
+      "1912.02481_s10_p6"
+    ],
+    "expected_answer": "only high-quality data helps",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1912.02481_q1",
+    "query": "How much is model improved by massive data and how much by quality?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1912.02481_q2",
+    "query": "What two architectures are used?",
+    "required_facts": [
+      "As a first experiment, we compare the quality of fastText embeddings trained on (high-quality) curated data and (low-quality) massively extracted data for Twi and Yor\u00f9b\u00e1 languages.",
+      "The huge ambiguity in the written Twi language motivates the exploration of different approaches to word embedding estimations. In this work, we compare the standard fastText methodology to include sub-word information with the character-enhanced approach with position-based clustered embeddings (CWE-LP as introduced in Section SECREF17). With the latter, we expect to specifically address the ambiguity present in a language that does not translate the different oral tones on vowels into the written language."
+    ],
+    "target_chunk_ids": [
+      "1912.02481_s10_p0",
+      "1912.02481_s11_p0"
+    ],
+    "expected_answer": "fastText, CWE-LP",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1810.04528_q0",
+    "query": "Does this paper target European or Brazilian Portuguese?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1810.04528_q1",
+    "query": "What were the word embeddings trained on?",
+    "required_facts": [
+      "In BIBREF14 , several word embedding models trained in a large Portuguese corpus are evaluated. Within the Word2Vec model, two training strategies were used. In the first, namely Skip-Gram, the model is given the word and attempts to predict its neighboring words. The second, Continuous Bag-of-Words (CBOW), the model is given the sequence of words without the middle one and attempts to predict this omitted word. The latter was chosen for application in the present proposal.",
+      "Using the word2vec model available in a public repository BIBREF14 , the proposal involves the analysis of the most similar analogies generated before and after the application of the BIBREF3 . The work is focused on the analysis of gender bias associated with professions in word embeddings. So therefore into the evaluation of the accuracy of the associations generated, aiming at achieving results as good as possible without prejudicing the evaluation metrics."
+    ],
+    "target_chunk_ids": [
+      "1810.04528_s2_p1",
+      "1810.04528_s3_p2"
+    ],
+    "expected_answer": "large Portuguese corpus",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1810.04528_q2",
+    "query": "Which word embeddings are analysed?",
+    "required_facts": [
+      "In BIBREF14 , several word embedding models trained in a large Portuguese corpus are evaluated. Within the Word2Vec model, two training strategies were used. In the first, namely Skip-Gram, the model is given the word and attempts to predict its neighboring words. The second, Continuous Bag-of-Words (CBOW), the model is given the sequence of words without the middle one and attempts to predict this omitted word. The latter was chosen for application in the present proposal."
+    ],
+    "target_chunk_ids": [
+      "1810.04528_s2_p1"
+    ],
+    "expected_answer": "Continuous Bag-of-Words (CBOW)",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2002.02224_q1",
+    "query": "How is quality of the citation measured?",
+    "required_facts": [
+      "In order to obtain the citation data of the Czech apex courts, it was necessary to recognize and extract the references from the CzCDC 1.0. Given that training data for both the reference recognition model BIBREF13, BIBREF34 and the text segmentation model BIBREF33 are publicly available, we were able to conduct extensive error analysis and put together a pipeline to arguably achieve the maximum efficiency in the task. The pipeline described in this part is graphically represented in Figure FIGREF10.",
+      "At this point, it is necessary to evaluate the performance of the above mentioned part of the pipeline before proceeding further. The evaluation of the performance is summarised in Table TABREF11. It shows that organising the two models into the pipeline boosted the performance of the reference recognition model, leading to a higher F1 measure in the initial recognition of the text spans and their classification."
+    ],
+    "target_chunk_ids": [
+      "2002.02224_s9_p0",
+      "2002.02224_s9_p3"
+    ],
+    "expected_answer": "it is necessary to evaluate the performance of the above mentioned part of the pipeline before proceeding further. The evaluation of the performance is summarised in Table TABREF11. It shows that organising the two models into the pipeline boosted the performance of the reference recognition model, leading to a higher F1 measure in the initial recognition of the text spans and their classification.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2002.02224_q2",
+    "query": "How big is the dataset?",
+    "required_facts": [
+      "Overall, through the process described in Section SECREF3, we have retrieved three datasets of extracted references - one dataset per each of the apex courts. These datasets consist of the individual pairs containing the identification of the decision from which the reference was retrieved, and the identification of the referred documents. As we only extracted references to other judicial decisions, we obtained 471,319 references from Supreme Court decisions, 167,237 references from Supreme Administrative Court decisions and 264,463 references from Constitutional Court Decisions. These are numbers of text spans identified as references prior the further processing described in Section SECREF3."
+    ],
+    "target_chunk_ids": [
+      "2002.02224_s10_p0"
+    ],
+    "expected_answer": "903019 references",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07433_q0",
+    "query": "Do they evaluate only on English datasets?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07433_q2",
+    "query": "How is the intensity of the PTSD established?",
+    "required_facts": [
+      "To provide an initial results, we take 50% of users' last week's (the week they responded of having PTSD) data to develop PTSD Linguistic dictionary and apply LAXARY framework to fill up surveys on rest of 50% dataset. The distribution of this training-test dataset segmentation followed a 50% distribution of PTSD and No PTSD from the original dataset. Our final survey based classification results showed an accuracy of 96% in detecting PTSD and mean squared error of 1.2 in estimating its intensity given we have four intensity, No PTSD, Low Risk PTSD, Moderate Risk PTSD and High Risk PTSD with a score of 0, 1, 2 and 3 respectively. Table TABREF29 shows the classification details of our experiment which provide the very good accuracy of our classification. To compare the outperformance of our method, we also implemented Coppersmith et. al. proposed method and achieved an 86% overall accuracy of detecting PTSD users BIBREF11 following the same training-test dataset distribution. Fig FIGREF28 illustrates the comparisons between LAXARY and Coppersmith et. al. proposed method. Here we can see, the outperformance of our proposed method as well as the importance of $s-score$ estimation. We also illustrates the importance of $\\alpha -score$ and $S-score$ in Fig FIGREF30. Fig FIGREF30 illustrates that if we change the number of training samples (%), LAXARY models outperforms Coppersmith et. al. proposed model under any condition. In terms of intensity, Coppersmith et. al. totally fails to provide any idea however LAXARY provides extremely accurate measures of intensity estimation for PTSD sufferers (as shown in Fig FIGREF31) which can be explained simply providing LAXARY model filled out survey details. Table TABREF29 shows the details of accuracies of both PTSD detection and intensity estimation. Fig FIGREF32 shows the classification accuracy changes over the training sample sizes for each survey which shows that DOSPERT scale outperform other surveys. Fig FIGREF33 shows that if we take previous weeks (instead of only the week diagnosis of PTSD was taken), there are no significant patterns of PTSD detection."
+    ],
+    "target_chunk_ids": [
+      "2003.07433_s13_p0"
+    ],
+    "expected_answer": "Given we have four intensity, No PTSD, Low Risk PTSD, Moderate Risk PTSD and High Risk PTSD with a score of 0, 1, 2 and 3 respectively, the estimated intensity is established as mean squared error.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07433_q3",
+    "query": "How is LIWC incorporated into this system?",
+    "required_facts": [
+      "A threshold of 1 for $s-score$ divides scores into positive and negative classes. In a multi-class setting, the algorithm minimizes the cross entropy, selecting the model with the highest probability. For each user, we calculate the proportion of tweets scored positively by each LIWC category. These proportions are used as a feature vector in a loglinear regression model BIBREF20. Prior to training, we preprocess the text of each tweet: we replace all usernames with a single token (USER), lowercase all text, and remove extraneous whitespace. We also exclude any tweet that contained a URL, as these often pertain to events external to the user."
+    ],
+    "target_chunk_ids": [
+      "2003.07433_s7_p1"
+    ],
+    "expected_answer": "For each user, we calculate the proportion of tweets scored positively by each LIWC category.",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07433_q4",
+    "query": "How many twitter users are surveyed using the clinically validated survey?",
+    "required_facts": [
+      "We download 210 users' all twitter posts who are war veterans and clinically diagnosed with PTSD sufferers as well which resulted a total 12,385 tweets. Fig FIGREF16 shows each of the 210 veteran twitter users' monthly average tweets. We categorize these Tweets into two groups: Tweets related to work and Tweets not related to work. That is, only the Tweets that use a form of the word \u201cwork*\u201d (e.g. work,worked, working, worker, etc.) or \u201cjob*\u201d (e.g. job, jobs, jobless, etc.) are identified as work-related Tweets, with the remaining categorized as non-work-related Tweets. This categorization method increases the likelihood that most Tweets in the work group are indeed talking about work or job; for instance, \u201cBack to work. Projects are firing back up and moving ahead now that baseball is done.\u201d This categorization results in 456 work-related Tweets, about 5.4% of all Tweets written in English (and 75 unique Twitter users). To conduct weekly-level analysis, we consider three categorizations of Tweets (i.e. overall Tweets, work-related Tweets, and non work-related Tweets) on a daily basis, and create a text file for each week for each group."
+    ],
+    "target_chunk_ids": [
+      "2003.07433_s6_p0"
+    ],
+    "expected_answer": "210",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.07433_q5",
+    "query": "Which clinically validated survey tools are used?",
+    "required_facts": [
+      "We use an automated regular expression based searching to find potential veterans with PTSD in twitter, and then refine the list manually. First, we select different keywords to search twitter users of different categories. For example, to search self-claimed diagnosed PTSD sufferers, we select keywords related to PTSD for example, post trauma, post traumatic disorder, PTSD etc. We use a regular expression to search for statements where the user self-identifies as being diagnosed with PTSD. For example, Table TABREF27 shows a self-identified tweet posts. To search veterans, we mostly visit to different twitter accounts of veterans organizations such as \"MA Women Veterans @WomenVeterans\", \"Illinois Veterans @ILVetsAffairs\", \"Veterans Benefits @VAVetBenefits\" etc. We define an inclusion criteria as follows: one twitter user will be part of this study if he/she describes himself/herself as a veteran in the introduction and have at least 25 tweets in last week. After choosing the initial twitter users, we search for self-identified PTSD sufferers who claim to be diagnosed with PTSD in their twitter posts. We find 685 matching tweets which are manually reviewed to determine if they indicate a genuine statement of a diagnosis for PTSD. Next, we select the username that authored each of these tweets and retrieve last week's tweets via the Twitter API. We then filtered out users with less than 25 tweets and those whose tweets were not at least 75% in English (measured using an automated language ID system.) This filtering left us with 305 users as positive examples. We repeated this process for a group of randomly selected users. We randomly selected 3,000 twitter users who are veterans as per their introduction and have at least 25 tweets in last one week. After filtering (as above) in total 2,423 users remain, whose tweets are used as negative examples developing a 2,728 user's entire weeks' twitter posts where 305 users are self-claimed PTSD sufferers. We distributed Dryhootch chosen surveys among 1,200 users (305 users are self claimed PTSD sufferers and rest of them are randomly chosen from previous 2,423 users) and received 210 successful responses. Among these responses, 92 users were diagnosed as PTSD by any of the three surveys and rest of the 118 users are diagnosed with NO PTSD. Among the clinically diagnosed PTSD sufferers, 17 of them were not self-identified before. However, 7 of the self-identified PTSD sufferers are assessed with no PTSD by PTSD assessment tools. The response rates of PTSD and NO PTSD users are 27% and 12%. In summary, we have collected one week of tweets from 2,728 veterans where 305 users claimed to have diagnosed with PTSD. After distributing Dryhootch surveys, we have a dataset of 210 veteran twitter users among them 92 users are assessed with PTSD and 118 users are diagnosed with no PTSD using clinically validated surveys. The severity of the PTSD are estimated as Non-existent, light, moderate and high PTSD based on how many surveys support the existence of PTSD among the participants according to dryhootch manual BIBREF18, BIBREF19.",
+      "There are many clinically validated PTSD assessment tools that are being used both to detect the prevalence of PTSD and its intensity among sufferers. Among all of the tools, the most popular and well accepted one is Domain-Specific Risk-Taking (DOSPERT) Scale BIBREF15. This is a psychometric scale that assesses risk taking in five content domains: financial decisions (separately for investing versus gambling), health/safety, recreational, ethical, and social decisions. Respondents rate the likelihood that they would engage in domain-specific risky activities (Part I). An optional Part II assesses respondents' perceptions of the magnitude of the risks and expected benefits of the activities judged in Part I. There are more scales that are used in risky behavior analysis of individual's daily activities such as, The Berlin Social Support Scales (BSSS) BIBREF16 and Values In Action Scale (VIAS) BIBREF17. Dryhootch America BIBREF18, BIBREF19, a veteran peer support community organization, chooses 5, 6 and 5 questions respectively from the above mentioned survey systems to assess the PTSD among war veterans and consider rest of them as irrelevant to PTSD. The details of dryhootch chosen survey scale are stated in Table TABREF13. Table!TABREF14 shows a sample DOSPERT scale demographic chosen by dryhootch. The threshold (in Table TABREF13) is used to calculate the risky behavior limits. For example, if one individual's weekly DOSPERT score goes over 28, he is in critical situation in terms of risk taking symptoms of PTSD. Dryhootch defines the intensity of PTSD into four categories based on the weekly survey results of all three clinical survey tools (DOSPERT, BSSS and VIAS )"
+    ],
+    "target_chunk_ids": [
+      "2003.07433_s5_p0",
+      "2003.07433_s3_p0"
+    ],
+    "expected_answer": "DOSPERT, BSSS and VIAS",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.12218_q0",
+    "query": "Did they experiment with the dataset?",
+    "required_facts": [
+      "In Figure FIGREF28, we show some examples of the annotation results in CORD-19-NER. We can see that our distantly- or weakly supervised methods achieve high quality recognizing the new entity types, requiring only several seed examples as the input. For example, we recognized \u201cSARS-CoV-2\" as the \u201cCORONAVIRUS\" type, \u201cbat\" and \u201cpangolins\" as the \u201cWILDLIFE\" type and \u201cVan der Waals forces\" as the \u201cPHYSICAL_SCIENCE\" type. This NER annotation results help downstream text mining tasks in discovering the origin and the physical nature of the virus. Our NER methods are domain-independent that can be applied to corpus in different domains. In addition, we show another example of NER annotation on New York Times with our system in Figure FIGREF29.",
+      "In Figure FIGREF30, we show the comparison of our annotation results with existing NER/BioNER systems. In Figure FIGREF30, we can see that only our method can identify \u201cSARS-CoV-2\" as a coronavirus. In Figure FIGREF30, we can see that our method can identify many more entities such as \u201cpylogenetic\" as a evolution term and \u201cbat\" as a wildlife. In Figure FIGREF30, we can also see that our method can identify many more entities such as \u201cracism\" as a social behavior. In summary, our distantly- and weakly-supervised NER methods are reliable for high-quality entity recognition without requiring human effort for training data annotation."
+    ],
+    "target_chunk_ids": [
+      "2003.12218_s3_p0",
+      "2003.12218_s3_p1"
+    ],
+    "expected_answer": "yes",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.12218_q1",
+    "query": "What is the size of this dataset?",
+    "required_facts": [
+      "Named entity recognition (NER) is a fundamental step in text mining system development to facilitate the COVID-19 studies. There is critical need for NER methods that can quickly adapt to all the COVID-19 related new types without much human effort for training data annotation. We created this CORD-19-NER dataset with comprehensive named entity annotation on the CORD-19 corpus (2020-03-13). This dataset covers 75 fine-grained named entity types. CORD-19-NER is automatically generated by combining the annotation results from four sources. In the following sections, we introduce the details of CORD-19-NER dataset construction. We also show some NER annotation results in this dataset.",
+      "The corpus is generated from the 29,500 documents in the CORD-19 corpus (2020-03-13). We first merge all the meta-data (all_sources_metadata_2020-03-13.csv) with their corresponding full-text papers. Then we create a tokenized corpus (CORD-19-corpus.json) for further NER annotations."
+    ],
+    "target_chunk_ids": [
+      "2003.12218_s0_p1",
+      "2003.12218_s1_p0"
+    ],
+    "expected_answer": "29,500 documents",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1904.09678_q1",
+    "query": "how many languages exactly is the sentiment lexica for?",
+    "required_facts": [],
+    "target_chunk_ids": [],
+    "expected_answer": "",
+    "expected_behavior": "abstain",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "1904.09678_q2",
+    "query": "what sentiment sources do they compare with?",
+    "required_facts": [
+      "As the gold standard sentiment lexica, we chose manually created lexicon in Czech BIBREF11 , German BIBREF12 , French BIBREF13 , Macedonian BIBREF14 , and Spanish BIBREF15 . These lexica contain general domain words (as opposed to Twitter or Bible). As gold standard for twitter domain we use emoticon dataset and perform emoticon sentiment prediction BIBREF16 , BIBREF17 ."
+    ],
+    "target_chunk_ids": [
+      "1904.09678_s2_p1"
+    ],
+    "expected_answer": "manually created lexicon in Czech BIBREF11 , German BIBREF12 , French BIBREF13 , Macedonian BIBREF14 , and Spanish BIBREF15",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.06651_q0",
+    "query": "Is the method described in this work a clustering-based method?",
+    "required_facts": [
+      "The task of Word Sense Induction (WSI) can be seen as an unsupervised version of WSD. WSI aims at clustering word senses and does not require to map each cluster to a predefined sense. Instead of that, word sense inventories are induced automatically from the clusters, treating each cluster as a single sense of a word. WSI approaches fall into three main groups: context clustering, word ego-network clustering and synonyms (or substitute) clustering.",
+      "We suggest a more advanced procedure of graph construction that uses the interpretability of vector addition and subtraction operations in word embedding space BIBREF6 while the previous algorithm only relies on the list of nearest neighbours in word embedding space. The key innovation of our algorithm is the use of vector subtraction to find pairs of most dissimilar graph nodes and construct the graph only from the nodes included in such \u201canti-edges\u201d. Thus, our algorithm is based on graph-based word sense induction, but it also relies on vector-based operations between word embeddings to perform filtering of graph nodes. Analogously to the work of Pelevina:16, we construct a semantic relatedness graph from a list of nearest neighbours, but we filter this list using the following procedure:"
+    ],
+    "target_chunk_ids": [
+      "2003.06651_s4_p3",
+      "2003.06651_s7_p1"
+    ],
+    "expected_answer": "yes",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.06651_q1",
+    "query": "How are the different senses annotated/labeled?",
+    "required_facts": [
+      "The dataset consists of a set of polysemous words: 20 nouns, 20 verbs, and 10 adjectives and specifies 20 to 100 contexts per word, with the total of 4,664 contexts, drawn from the Open American National Corpus. Given a set of contexts of a polysemous word, the participants of the competition had to divide them into clusters by sense of the word. The contexts are manually labelled with WordNet senses of the target words, the gold standard clustering is generated from this labelling.",
+      "The task allows two setups: graded WSI where participants can submit multiple senses per word and provide the probability of each sense in a particular context, and non-graded WSI where a model determines a single sense for a word in context. In our experiments we performed non-graded WSI. We considered the most suitable sense as the one with the highest cosine similarity with embeddings of the context, as described in Section SECREF9."
+    ],
+    "target_chunk_ids": [
+      "2003.06651_s17_p0",
+      "2003.06651_s17_p1"
+    ],
+    "expected_answer": "The contexts are manually labelled with WordNet senses of the target words",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  },
+  {
+    "case_id": "2003.06651_q2",
+    "query": "Was any extrinsic evaluation carried out?",
+    "required_facts": [
+      "We first evaluate our converted embedding models on multi-language lexical similarity and relatedness tasks, as a sanity check, to make sure the word sense induction process did not hurt the general performance of the embeddings. Then, we test the sense embeddings on WSD task."
+    ],
+    "target_chunk_ids": [
+      "2003.06651_s13_p0"
+    ],
+    "expected_answer": "yes",
+    "expected_behavior": "answer",
+    "source": "qasper",
+    "attack_variant": null
+  }
+]

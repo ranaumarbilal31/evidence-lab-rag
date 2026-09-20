@@ -63,6 +63,13 @@ class Validation(StrictModel):
     unsupported_claims: list[str]
 
 
+class MissingFacts(StrictModel):
+    """Output of the recovery module's missing-fact analysis: short, search-friendly
+    descriptions of what a question needs that a just-quarantined chunk would have
+    addressed -- never the quarantined chunk's own (untrusted) wording repeated back."""
+    facts: list[str]
+
+
 @dataclass(frozen=True)
 class Chunk:
     id: str
@@ -78,6 +85,55 @@ class Hit:
     score: float
 
 
+@dataclass(frozen=True)
+class DetectionResult:
+    """One chunk's Safety Wall verdict.
+
+    `confidence` is an ordinal signal from whichever layer produced the flag
+    (heuristic pattern match or semantic classifier judgment); it is NOT a
+    calibrated probability and must never be interpreted as one.
+    """
+    chunk_id: str
+    flagged: bool
+    flag_reason: str
+    confidence: float
+    source: str  # "heuristic" | "classifier"
+
+
+@dataclass(frozen=True)
+class RecoveredChunk:
+    """A single piece of replacement evidence that survived exclusion, deduplication,
+    and support verification. `document_hash`/`page` are carried along (beyond the
+    minimal spec shape) purely so the pipeline can reconstruct a faithful `Chunk` and
+    keep citation provenance correct -- they are not part of any trust decision."""
+    chunk_id: str
+    text: str
+    source_doc: str
+    score: float
+    document_hash: str = ""
+    page: int | None = None
+
+
+@dataclass
+class RecoveryResult:
+    excluded_chunks: list[str]
+    missing_facts: list[str]
+    recovered_chunks: list[RecoveredChunk] = field(default_factory=list)
+    recovery_status: str = "failed"  # "full" | "partial" | "failed"
+    rejected: list[dict] = field(default_factory=list)  # audit trail: candidates considered and turned away
+
+
+@dataclass(frozen=True)
+class Decision:
+    """The Safety Wall's final verdict, computed deterministically in code (see
+    rag.decision.decide) from VERIFIED evidence only -- never from raw retrieval or
+    from a quarantined/unverified chunk."""
+    decision: str  # "answer" | "partial_answer" | "abstain"
+    verified_chunks: list[str]
+    unsupported_facts: list[str]
+    reason: str
+
+
 @dataclass
 class Result:
     status: str
@@ -85,6 +141,9 @@ class Result:
     citations: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     excluded: list[dict] = field(default_factory=list)
+    detections: list[dict] = field(default_factory=list)
+    recovery: dict | None = None
+    decision: dict | None = None
     timings: dict[str, float] = field(default_factory=dict)
     configuration: dict = field(default_factory=dict)
     usage: dict = field(default_factory=dict)

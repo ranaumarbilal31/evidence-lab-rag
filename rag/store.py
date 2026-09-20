@@ -52,13 +52,17 @@ class Index:
             raise RagError("The embedding API returned an empty vector.")
         self.vectors = array / norms
 
-    def retrieve(self, vector, k=8):
+    def retrieve(self, vector, k=8, exclude_ids=None):
         query = np.asarray(vector, dtype=np.float32)
         if query.shape != (DIMENSIONS,) or not np.isfinite(query).all() or not np.linalg.norm(query):
             raise RagError("The query embedding is invalid.")
         scores = self.vectors @ (query / np.linalg.norm(query))
-        order = np.argsort(-scores, kind="stable")[:k]
-        return [Hit(self.chunks[i], float(scores[i])) for i in order]
+        order = np.argsort(-scores, kind="stable")
+        if exclude_ids:
+            # Recovery search reuses this same ranking; it only ever narrows the candidate
+            # set (quarantined/already-trusted ids), never changes how chunks are scored.
+            order = [i for i in order if self.chunks[i].id not in exclude_ids]
+        return [Hit(self.chunks[i], float(scores[i])) for i in order[:k]]
 
     def to_dict(self):
         return {"config": INDEX_CONFIG, "chunks": [asdict(c) for c in self.chunks], "vectors": self.vectors.tolist()}

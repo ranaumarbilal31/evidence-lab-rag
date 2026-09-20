@@ -74,6 +74,15 @@ def test_index_roundtrip_and_retrieval(tmp_path):
     store.close()
 
 
+def test_retrieve_excludes_given_chunk_ids_without_changing_the_ranking():
+    chunks, _ = ingest([("a.txt", b"Annual leave"), ("b.txt", b"Refund policy")])
+    index = Index(chunks, np.eye(2, DIMENSIONS))
+    unfiltered = index.retrieve(np.eye(2, DIMENSIONS)[1])
+    assert [h.chunk.filename for h in unfiltered] == ["b.txt", "a.txt"]
+    filtered = index.retrieve(np.eye(2, DIMENSIONS)[1], exclude_ids={chunks[1].id})
+    assert [h.chunk.filename for h in filtered] == ["a.txt"]
+
+
 def test_session_storage_isolation():
     a, b = Store(), Store()
     a.put("visitor", {"text": "Only A"})
