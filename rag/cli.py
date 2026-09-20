@@ -24,7 +24,16 @@ from .samples import SCENARIOS
 from .store import Store, Index, build_index
 
 ROOT = Path(__file__).resolve().parents[1]
-MODES = ["baseline", "protected", "without_injection", "without_relevance", "without_conflict", "without_sufficiency", "without_validation"]
+MODES = ["baseline", "protected", "without_injection", "without_relevance", "without_conflict",
+         "without_sufficiency", "without_validation", "safety_wall"]
+# Research naming <-> this project's existing mode names (the modes themselves are not
+# renamed; this documents the mapping for the three-pipeline Safety Wall comparison):
+#   STANDARD      -> "baseline"     protected=False; existing behavior, unchanged.
+#   DETECT_BLOCK  -> "protected"    existing detection + quarantine; recover=False
+#                                    (already the existing "protected" mode's behavior).
+#   SAFETY_WALL   -> "safety_wall"  same as "protected" plus recover=True, retrieve_fn=
+#                                    index.retrieve -- missing-fact analysis + bounded
+#                                    recovery, reusing the existing retriever unchanged.
 
 
 def dump(path, data):
@@ -119,18 +128,23 @@ def evaluate(args):
     if not all(c["human_label_reviewed"] is True for c in selected):
         raise RagError("Review expected labels in cases.jsonl and set human_label_reviewed=true per reviewed case before evaluation.")
     mode_list = MODES if args.mode == "all" else [args.mode]
-    print(f"Selected {len(selected)} cases × {len(mode_list)} modes. Up to 6 checking/generation calls per protected mode, 1 baseline call, plus embeddings and retries. Runs checkpoint and may require multiple quota resets.")
+    print(f"Selected {len(selected)} cases × {len(mode_list)} modes. Up to 6 checking/generation calls per "
+          f"protected mode (up to 10 for safety_wall, which adds bounded recovery), 1 baseline call, plus "
+          f"embeddings and retries. Runs checkpoint and may require multiple quota resets.")
     outdir = ROOT / "research" / "runs"
     cache = Store(ROOT / "research" / "eval-cache.sqlite")
     try:
         for case in selected:
             identity = fingerprint([case, GEN_MODEL, EMBED_MODEL, PROMPT_VERSION])
             retrieval_path = outdir / f"{case['id']}-{identity[:12]}.retrieval.json"
+            index = None
             # Shared initial retrieval is reused exactly across modes and resumptions.
             if retrieval_path.exists():
                 from .models import Chunk, Hit
                 saved = json.loads(retrieval_path.read_text())
                 hits = [Hit(Chunk(**h["chunk"]), h["score"]) for h in saved["hits"]]
+                if "index" in saved:
+                    index = Index.from_dict(saved["index"])
             else:
                 chunks, _ = ingest([(n, t.encode()) for n, t in case["documents"].items()], LOCAL_LIMITS)
                 with governor.job({EMBED_MODEL: len(chunks) + 1}) as ticket:
@@ -138,8 +152,12 @@ def evaluate(args):
                     try:
                         index = build_index(chunks, client)
                         hits = index.retrieve(client.embed(case["question"]))
+                        # The full index (not just the top-k hits) is cached too, so the
+                        # safety_wall mode's bounded recovery search can reuse this exact
+                        # same existing retriever later without any extra embedding calls.
                         dump(retrieval_path, {"case_id": case["id"], "fingerprint": identity,
-                             "hits": [{"chunk": asdict(h.chunk), "score": h.score} for h in hits]})
+                             "hits": [{"chunk": asdict(h.chunk), "score": h.score} for h in hits],
+                             "index": index.to_dict()})
                     finally:
                         client.close()
             for mode in mode_list:
@@ -148,18 +166,39 @@ def evaluate(args):
                     previous = json.loads(result_path.read_text())
                     if previous["result"]["status"] not in {"error", "quota_exceeded"}:
                         continue
+                if mode == "safety_wall" and index is None:
+                    # Backward compatibility: a retrieval cache written before the
+                    # safety_wall mode existed only has `hits`, not the full index that
+                    # bounded recovery needs to search again. Rebuild it once (embedding
+                    # calls only, never generation calls) and persist it into the same
+                    # cache file so this only ever happens the first time.
+                    chunks, _ = ingest([(n, t.encode()) for n, t in case["documents"].items()], LOCAL_LIMITS)
+                    with governor.job({EMBED_MODEL: len(chunks)}) as ticket:
+                        client = Gemini(settings, governor, cache, ticket)
+                        try:
+                            index = build_index(chunks, client)
+                        finally:
+                            client.close()
+                    saved = json.loads(retrieval_path.read_text())
+                    saved["index"] = index.to_dict()
+                    dump(retrieval_path, saved)
                 # Generation caches are isolated by mode so ablations are independently run.
                 mode_cache = Store(ROOT / "research" / f"{mode}-cache.sqlite")
                 try:
-                    with governor.job({GEN_MODEL: 1 if mode == "baseline" else 6}) as ticket:
+                    expected_calls = 1 if mode == "baseline" else (10 if mode == "safety_wall" else 6)
+                    with governor.job({GEN_MODEL: expected_calls}) as ticket:
                         client = Gemini(settings, governor, mode_cache, ticket)
                         try:
                             tick = time.perf_counter()
                             with MemorySample() as memory:
                                 result = Pipeline(client).run(case["question"], hits,
-                                    protected=mode != "baseline", disable=mode.removeprefix("without_") if mode.startswith("without_") else None)
+                                    protected=mode != "baseline",
+                                    disable=mode.removeprefix("without_") if mode.startswith("without_") else None,
+                                    recover=mode == "safety_wall",
+                                    retrieve_fn=index.retrieve if mode == "safety_wall" else None)
                             row = {"case_id": case["id"], "fingerprint": identity, "split": case["split"],
-                                "category": case["category"], "mode": mode, "result": asdict(result),
+                                "category": case["category"], "mode": mode, "query": case["question"],
+                                "result": asdict(result),
                                 "wall_seconds": time.perf_counter() - tick, "peak_rss_mb": memory.peak / 1024**2,
                                 "captured_at": datetime.now(timezone.utc).isoformat()}
                             dump(result_path, row)

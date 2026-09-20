@@ -1,12 +1,14 @@
 # Evidence Lab
 
-A free-API research demo comparing ordinary RAG with a pipeline that screens retrieved evidence and validates answers. **No local AI models and no automatic paid fallback.**
+A free-API research demo comparing ordinary RAG with pipelines that screen retrieved evidence, quarantine suspected prompt injection, attempt bounded evidence recovery, and validate answers before release. **No local AI models and no automatic paid fallback.**
 
 ## Current state
 
 Public demo: **https://evidence-lab-rag.streamlit.app/**. Source: https://github.com/ranaumarbilal31/evidence-lab-rag.
 
 All five sample embedding indexes are generated through the API. All five real baseline/protected captures are available, including conflict and insufficient evidence. The provider reported a free generation request limit of 20, so the application cap is 20 per day. No billing or alternate provider is enabled. The app displays clearly labeled illustrations where captures are unavailable. Human-scored research and hosted acceptance remain incomplete; see [RELEASE_STATUS.md](RELEASE_STATUS.md).
+
+The public UI now offers a pipeline selector — Standard RAG, Detect & Block, and Full Safety Wall (detection, quarantine, missing-fact analysis, and bounded evidence recovery) — with a 9-stage, expandable breakdown of retrieved evidence, safety screening, quarantine, missing facts, recovery, verified evidence, decision, final answer, and citation validation for the Full Safety Wall pipeline. See [Tests and evaluation](#tests-and-evaluation) below for the matching research-mode comparison.
 
 ## Run on Windows
 
@@ -62,7 +64,9 @@ Freeze prompts and configuration before held-out evaluation. Do not tune using h
 .\.venv\Scripts\python.exe -m rag.cli export-scores
 ```
 
-The seven modes are baseline, protected, and five ablations (injection, relevance filtering, conflict, sufficiency, validation). Generation settings and initial retrieval match across modes. Disabling relevance retains claim extraction, while disabling final validation retains mechanical citation checks. Reports identify these boundaries.
+The eight modes are baseline, protected, five ablations (injection, relevance filtering, conflict, sufficiency, validation), and safety_wall. Generation settings and initial retrieval match across modes: the same cached initial retrieval is reused unchanged for every mode on a given case, so comparisons are not confounded by different evidence. Disabling relevance retains claim extraction, while disabling final validation retains mechanical citation checks. Reports identify these boundaries.
+
+Three of the eight modes form the core Safety Wall research comparison, over the same cases: **STANDARD** (`baseline`, no safety checks), **DETECT_BLOCK** (`protected`, existing detection and quarantine, no recovery), and **SAFETY_WALL** (`safety_wall`, detection and quarantine plus missing-fact analysis and bounded evidence recovery). `safety_wall` reuses the existing retriever (`Index.retrieve`) unchanged, both for initial retrieval and for the recovery search; recovery is bounded to `MAX_RECOVERY_ATTEMPTS=1` retrieval attempt of up to `RECOVERY_TOP_K=3` candidates (see `rag/recovery.py`), and every recovered chunk is independently verified before it can reach generation — a quarantined chunk can never become trusted evidence again. Run a single mode with `--mode baseline`/`protected`/`safety_wall` instead of `--mode all` to compare pipelines without paying for the five ablations too.
 
 Each result and retrieval set is checkpointed in `research/runs`. Repeating an identical command resumes unfinished work. Do not run multiple local CLI processes simultaneously against the same quota ledger. Local research and the hosted app share actual provider quotas if they use the same project; pause public use or reduce local budgets during evaluation. Resets occur at midnight Pacific time; the app uses that timezone.
 
@@ -85,8 +89,8 @@ This produces counts, human-scored quality metrics, paired attack/clean comparis
 
 ## Project structure
 
-- `app.py`: public UI and session state.
-- `rag/`: extraction, API client, quota governor, index storage, verification, evaluation, and owner commands.
+- `app.py`: public UI, session state, and the Standard RAG / Detect & Block / Full Safety Wall pipeline selector.
+- `rag/`: extraction, API client, quota governor, index storage, Safety Wall detection (`detection.py`) and bounded evidence recovery (`recovery.py`), the deterministic decision layer (`decision.py`), pipeline orchestration (`pipeline.py`), evaluation, and owner commands.
 - `tests/`: controlled API fixtures, failure tests, and Streamlit app tests. No network calls.
 - `demo/`: generated public indexes and real captures (created only with an API key).
 - `research/`: private generated cases, human scores, caches, and checkpoints. Never included in the deployment package.

@@ -15,6 +15,7 @@ from rag.ingest import ingest
 from rag.models import Result, RagError, QuotaError
 from rag.pipeline import Pipeline
 from rag.quota import Governor
+from rag.recovery import MAX_RECOVERY_ATTEMPTS, RECOVERY_TOP_K
 from rag.samples import SCENARIOS
 from rag.store import Index, Store, build_index
 
@@ -83,6 +84,121 @@ def show_result(result, heading):
         st.json({"excluded_evidence": result.excluded, "timings_seconds": result.timings,
                  "usage": result.usage, "configuration": result.configuration,
                  "cache_hit": result.cache_hit})
+
+
+def show_safety_wall_result(report, heading):
+    """Render a SafetyWallReport (Pipeline.run_safety_wall) as 9 compact, auditable
+    stages. Pure display: every value shown here already exists on the report --
+    nothing is computed, scored, or inferred by the UI. Quarantined chunks are shown
+    only under stage 3, clearly marked UNTRUSTED; they are never part of
+    `final_verified_evidence` or the generation context, because run_safety_wall never
+    puts them there (see rag/pipeline.py)."""
+    st.subheader(heading)
+    labels = {"answered": "Answer with evidence", "partial_answer": "Partial answer with evidence",
+              "conflict": "Conflicting evidence", "insufficient_evidence": "Insufficient evidence",
+              "quota_exceeded": "Live quota paused", "error": "Unable to verify"}
+    st.caption(labels.get(report.status, report.status).upper())
+
+    flagged_ids = {c["chunk_id"] for c in report.flagged_chunks}
+
+    with st.expander("1 · Retrieved evidence", expanded=False):
+        if report.initial_evidence:
+            for chunk in report.initial_evidence:
+                st.caption(f"`{chunk['chunk_id']}` · {chunk['filename']}")
+        else:
+            st.caption("No evidence was retrieved.")
+
+    with st.expander("2 · Safety screening", expanded=False):
+        clean = [c for c in report.initial_evidence if c["chunk_id"] not in flagged_ids]
+        st.markdown(f"**Clean chunks ({len(clean)})**")
+        for chunk in clean:
+            st.caption(f"`{chunk['chunk_id']}` · {chunk['filename']}")
+        st.markdown(f"**Flagged chunks ({len(report.flagged_chunks)})**")
+        if report.flagged_chunks:
+            for detection in report.flagged_chunks:
+                st.caption(f"`{detection['chunk_id']}` · {detection['source']} · confidence {detection['confidence']:.2f}")
+                st.text(detection["flag_reason"])
+        else:
+            st.caption("No chunk was flagged.")
+
+    with st.expander("3 · Quarantine", expanded=False):
+        if report.quarantined_chunks:
+            st.warning("Quarantined chunks are UNTRUSTED. They are never included in the generation context.")
+            for chunk in report.quarantined_chunks:
+                st.caption(f"`{chunk['chunk_id']}` · {chunk['filename']} · UNTRUSTED")
+                st.text(chunk.get("reason", ""))
+        else:
+            st.caption("Nothing was quarantined.")
+
+    with st.expander("4 · Missing fact", expanded=False):
+        if report.missing_facts:
+            for fact in report.missing_facts:
+                st.write(f"- {fact}")
+        else:
+            st.caption("No missing fact was attributed (nothing quarantined, or no fact could be tied to a question).")
+
+    with st.expander("5 · Evidence recovery", expanded=False):
+        recovery_needed = bool(report.quarantined_chunks)
+        recovery_attempted = bool(report.missing_facts)
+        st.write(f"Recovery needed: {'yes' if recovery_needed else 'no'}")
+        st.write(f"Recovery attempted: {'yes' if recovery_attempted else 'no'}")
+        if recovery_attempted:
+            st.caption(f"Recovery budget: {MAX_RECOVERY_ATTEMPTS} retrieval attempt(s), top {RECOVERY_TOP_K} candidate(s) per attempt.")
+            st.caption(f"Recovery query: {'; '.join(report.missing_facts)}")
+            excluded_ids = sorted(c["chunk_id"] for c in report.quarantined_chunks)
+            st.caption(f"Excluded chunk IDs: {', '.join(excluded_ids) if excluded_ids else 'none'}")
+            recovered_ids = [c["chunk_id"] for c in report.recovered_chunks]
+            st.caption(f"Recovered chunk IDs: {', '.join(recovered_ids) if recovered_ids else 'none'}")
+            st.caption(f"Recovery status: {report.recovery_status or 'n/a'}")
+            if report.recovery_attempts:
+                st.markdown("**Rejected recovery candidates**")
+                for rejected in report.recovery_attempts:
+                    st.caption(f"`{rejected.get('chunk_id', 'n/a')}`: {rejected['reason']}")
+        else:
+            st.caption("No recovery attempt was made.")
+
+    with st.expander("6 · Verified evidence", expanded=False):
+        st.caption("Only this evidence was allowed to reach generation.")
+        if report.final_verified_evidence:
+            for chunk in report.final_verified_evidence:
+                st.caption(f"`{chunk['chunk_id']}` · {chunk['filename']}")
+        else:
+            st.caption("No evidence was verified as sufficient.")
+
+    with st.expander("7 · Decision", expanded=False):
+        if report.decision:
+            st.write(f"Decision: **{report.decision['decision']}**")
+            st.caption(f"Reason: {report.decision['reason']}")
+            if report.decision.get("unsupported_facts"):
+                st.markdown("**Unsupported facts**")
+                for fact in report.decision["unsupported_facts"]:
+                    st.write(f"- {fact}")
+        else:
+            st.caption("No decision was recorded for this run.")
+
+    with st.expander("8 · Final answer", expanded=True):
+        st.text(report.answer)
+        if report.citations:
+            st.markdown("**Supporting passages**")
+            for citation in report.citations:
+                page = f" · page {citation['page']}" if citation["page"] else ""
+                st.caption(f"{citation['filename']}{page}")
+                st.text(citation["quote"])
+                st.caption(f"Source: {citation['chunk_id']}")
+
+    with st.expander("9 · Citation validation", expanded=False):
+        if report.validation is not None:
+            st.write(f"Mechanically validated as supported: {report.validation.get('supported')}")
+            if report.validation.get("unsupported_claims"):
+                st.markdown("**Unsupported claims**")
+                for claim in report.validation["unsupported_claims"]:
+                    st.write(f"- {claim}")
+        validation_failed = report.validation is not None and not report.validation.get("supported", True)
+        if report.status == "insufficient_evidence" and (validation_failed or not report.citations):
+            st.error("Citation validation did not pass. The answer above is the safe fallback (abstention), "
+                      "not an unverified answer presented as trustworthy.")
+        elif report.citations:
+            st.success("Citations passed the existing mechanical validation.")
 
 
 init_session()
@@ -193,8 +309,14 @@ question = st.text_input("Ask about this evidence", value=default_question, max_
 # A custom question is visitor data even when the corpus is public.
 if scenario_id and question != SCENARIOS[scenario_id]["question"]:
     cache = st.session_state.private_store
-compare = st.checkbox("Compare with ordinary RAG", value=True)
-identity = fingerprint([source, scenario_id, st.session_state.upload_fingerprint, question, compare])
+pipeline_choice = st.radio("Pipeline", ["Standard RAG", "Detect & Block", "Full Safety Wall"], index=1, horizontal=True,
+    help="Standard RAG: no safety checks, for comparison. Detect & Block: flags and quarantines suspicious "
+         "evidence before answering. Full Safety Wall: also analyzes what a quarantine cost the question and "
+         "attempts one bounded, independently-verified recovery of the missing fact.")
+compare = False
+if pipeline_choice != "Standard RAG":
+    compare = st.checkbox("Compare with Standard RAG", value=True)
+identity = fingerprint([source, scenario_id, st.session_state.upload_fingerprint, question, pipeline_choice, compare])
 if identity != st.session_state.result_key:
     st.session_state.results = None
 if st.button("Check the evidence", type="primary", disabled=not (settings.ready and index and question.strip())):
@@ -204,25 +326,44 @@ if st.button("Check the evidence", type="primary", disabled=not (settings.ready 
         st.warning("Please wait between questions. This free demo allows five new questions per session per hour.")
     else:
         client = None
+        if pipeline_choice == "Full Safety Wall":
+            reservation = {GEN_MODEL: 11 if compare else 10, EMBED_MODEL: 3 if compare else 2}
+        elif pipeline_choice == "Detect & Block":
+            reservation = {GEN_MODEL: 7 if compare else 6, EMBED_MODEL: 1}
+        else:
+            reservation = {GEN_MODEL: 1, EMBED_MODEL: 1}
         try:
-            with governor.job({GEN_MODEL: 7 if compare else 6, EMBED_MODEL: 1}) as ticket:
+            with governor.job(reservation) as ticket:
                 st.session_state.last_submit = now
                 st.session_state.question_times = history + [now]
                 client = Gemini(settings, governor, cache, ticket)
+                pipeline = Pipeline(client)
                 with st.status("Retrieving and checking evidence…", expanded=True) as status:
-                    tick = time.perf_counter()
-                    hits = index.retrieve(client.embed(question))
-                    retrieval_seconds = time.perf_counter() - tick
-                    pipeline = Pipeline(client)
-                    st.write("Checking instructions, relevance, conflicts, and answer support.")
-                    protected = pipeline.run(question, hits)
-                    protected.timings["retrieval"] = retrieval_seconds
-                    baseline = None
-                    if compare and protected.status not in {"quota_exceeded", "error"}:
-                        st.write("Running ordinary RAG on the same retrieved evidence.")
-                        baseline = pipeline.run(question, hits, protected=False)
-                    status.update(label="Evidence check complete" if protected.status not in {"error", "quota_exceeded"} else "Live request paused or failed", state="complete")
-                st.session_state.results = (protected, baseline)
+                    if pipeline_choice == "Full Safety Wall":
+                        st.write("Retrieving evidence, screening it, and attempting bounded recovery where needed.")
+                        primary_kind = "safety_wall"
+                        primary = pipeline.run_safety_wall(question, index)
+                        secondary = None
+                        if compare and primary.status not in {"quota_exceeded", "error"}:
+                            st.write("Running Standard RAG on freshly retrieved evidence.")
+                            hits = index.retrieve(client.embed(question))
+                            secondary = pipeline.run(question, hits, protected=False)
+                    else:
+                        tick = time.perf_counter()
+                        hits = index.retrieve(client.embed(question))
+                        retrieval_seconds = time.perf_counter() - tick
+                        protected_mode = pipeline_choice == "Detect & Block"
+                        primary_kind = "protected" if protected_mode else "baseline"
+                        st.write("Checking instructions, relevance, conflicts, and answer support." if protected_mode
+                                 else "Running ordinary RAG with no safety checks.")
+                        primary = pipeline.run(question, hits, protected=protected_mode)
+                        primary.timings["retrieval"] = retrieval_seconds
+                        secondary = None
+                        if compare and primary.status not in {"quota_exceeded", "error"}:
+                            st.write("Running Standard RAG on the same retrieved evidence.")
+                            secondary = pipeline.run(question, hits, protected=False)
+                    status.update(label="Evidence check complete" if primary.status not in {"error", "quota_exceeded"} else "Live request paused or failed", state="complete")
+                st.session_state.results = (primary_kind, primary, secondary)
                 st.session_state.result_key = identity
         except RagError as exc:
             st.warning(str(exc))
@@ -231,17 +372,19 @@ if st.button("Check the evidence", type="primary", disabled=not (settings.ready 
                 client.close()
 
 if st.session_state.results:
-    protected, baseline = st.session_state.results
-    if baseline:
+    primary_kind, primary, secondary = st.session_state.results
+    primary_heading = {"safety_wall": "Full Safety Wall", "protected": "Detect & Block", "baseline": "Standard RAG"}[primary_kind]
+    render_primary = show_safety_wall_result if primary_kind == "safety_wall" else show_result
+    if secondary:
         left, right = st.columns(2, gap="large")
         with left:
-            show_result(protected, "Protected RAG")
+            render_primary(primary, primary_heading)
         with right:
-            show_result(baseline, "Ordinary RAG")
+            show_result(secondary, "Standard RAG")
     else:
-        show_result(protected, "Protected RAG")
-    st.download_button("Download this comparison", json.dumps({"protected": asdict(protected),
-        "baseline": asdict(baseline) if baseline else None}, indent=2), "rag-comparison.json", "application/json")
+        render_primary(primary, primary_heading)
+    st.download_button("Download this comparison", json.dumps({"pipeline": primary_kind, "primary": asdict(primary),
+        "compare": asdict(secondary) if secondary else None}, indent=2), "rag-comparison.json", "application/json")
 
 st.divider()
 st.caption("Evidence Lab · Research demonstration · $0 service budget · No automatic paid fallback")

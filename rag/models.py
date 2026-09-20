@@ -144,10 +144,38 @@ class Result:
     detections: list[dict] = field(default_factory=list)
     recovery: dict | None = None
     decision: dict | None = None
+    # The raw 'validate' stage verdict (supported / unsupported_claims), recorded for
+    # audit purposes whether or not it passed -- None whenever that stage did not run
+    # (baseline, the conflict/abstain-before-generation paths, or disable="validation").
+    validation: dict | None = None
     timings: dict[str, float] = field(default_factory=dict)
     configuration: dict = field(default_factory=dict)
     usage: dict = field(default_factory=dict)
     cache_hit: bool = False
+
+
+@dataclass
+class SafetyWallReport:
+    """Single structured record of one full Safety Wall run (Pipeline.run_safety_wall):
+    query -> existing retrieval -> detection/quarantine -> missing-fact analysis ->
+    bounded recovery -> existing verification -> decision -> existing generation ->
+    existing citation validation. Assembled entirely from an existing Result (plus the
+    initial retrieval hits); it adds no retrieval, generation, or citation logic of its
+    own -- see Pipeline.run_safety_wall in rag/pipeline.py."""
+    query: str
+    status: str
+    initial_evidence: list[dict]
+    flagged_chunks: list[dict]
+    quarantined_chunks: list[dict]
+    missing_facts: list[str]
+    recovery_attempts: list[dict]
+    recovered_chunks: list[dict]
+    recovery_status: str | None
+    final_verified_evidence: list[dict]
+    decision: dict | None
+    answer: str
+    citations: list[dict]
+    validation: dict | None
 
 
 class RagError(Exception):

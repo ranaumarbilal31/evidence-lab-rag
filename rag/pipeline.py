@@ -8,7 +8,7 @@ from .config import GEN_MODEL, EMBED_MODEL, PROMPT_VERSION, MAX_INPUT
 from .decision import ABSTAIN, PARTIAL_ANSWER, decide, context_for
 from .detection import BASE, SAFETY_PROMPT, PATTERNS, suspicious, detect
 from .models import (Chunk, Decision, Safety, Relevance, Conflict, Sufficiency, Draft, Validation,
-                     MissingFacts, Evidence, Result, RagError, SchemaError, QuotaError)
+                     MissingFacts, Evidence, Result, SafetyWallReport, RagError, SchemaError, QuotaError)
 from .recovery import MISSING_FACT_PROMPT, RECOVERY_VERIFY_PROMPT, recover as recover_evidence
 
 # `suspicious` and `PATTERNS` now live in rag.detection (the Safety Wall module) and are
@@ -211,6 +211,7 @@ class Pipeline:
             if disable != "validation":
                 validation = ask("validate", {"question": question, "answer": draft.answer,
                     "evidence": [s.model_dump() for s in draft.sources]})
+                result.validation = validation.model_dump()
                 if not validation.supported or validation.unsupported_claims:
                     result.citations = []
                     return abstain("The generated answer could not be fully supported by its citations.")
@@ -218,15 +219,81 @@ class Pipeline:
             result.answer = draft.answer
             return result
         except QuotaError as exc:
+            # A citation set from an earlier, already-validated stage (e.g. citations were
+            # checked, then the *next* call -- validation -- hit a live quota pause) must
+            # never survive onto a non-"answered"/"partial_answer" result: the status here
+            # says the run did not complete, so nothing citation-shaped should imply it did.
+            result.citations = []
             result.status, result.answer = "quota_exceeded", str(exc)
             return result
         except RagError as exc:
+            result.citations = []
             result.status, result.answer = "error", str(exc)
             return result
         except Exception:
+            result.citations = []
             result.status, result.answer = "error", "A verification step failed. No unchecked answer was returned."
             return result
         finally:
             result.timings["total"] = time.perf_counter() - start
             result.usage = {key: self.client.usage.get(key, 0) - before.get(key, 0) for key in self.client.usage}
             result.cache_hit = result.usage.get("requests", 0) == 0 and result.usage.get("cache_hits", 0) > 0
+
+    def run_safety_wall(self, question, index):
+        """The full Safety Wall as a single orchestration entry point:
+
+            query -> index.retrieve (existing) -> Pipeline.run(..., protected=True,
+            recover=True, retrieve_fn=index.retrieve) -- i.e. this class's existing
+            detection/quarantine, missing-fact analysis, bounded recovery, relevance/
+            conflict/sufficiency verification, and decision layer, followed by this
+            class's existing generation and citation validation -- -> SafetyWallReport.
+
+        Reuses run() and Index.retrieve entirely; adds no new retrieval, generation, or
+        citation logic. It only assembles what run() already computed -- detections,
+        quarantine/exclusion, recovery, decision, citations, and the raw validation
+        verdict -- into one structured, auditable report shaped for the "Full Safety
+        Wall" evaluation mode, as distinct from Standard RAG (protected=False) and the
+        existing detect-and-block-only mode (protected=True, recover=False).
+        """
+        hits = index.retrieve(self.client.embed(question))
+        result = self.run(question, hits, protected=True, recover=True, retrieve_fn=index.retrieve)
+
+        # Resolve chunk_ids back to their content for the report: the original retrieval
+        # hits cover everything except recovered chunks, whose content only exists on
+        # result.recovery (recover_evidence() never mutates the caller's `hits`).
+        by_id = {hit.chunk.id: hit.chunk for hit in hits}
+        for recovered in (result.recovery or {}).get("recovered_chunks", []):
+            by_id[recovered["chunk_id"]] = Chunk(recovered["chunk_id"], recovered.get("document_hash", ""),
+                recovered["source_doc"], recovered.get("page"), recovered["text"])
+
+        def describe(chunk_id, reason=None):
+            chunk = by_id.get(chunk_id)
+            entry = {"chunk_id": chunk_id, "filename": chunk.filename if chunk else None,
+                     "text": chunk.text if chunk else None}
+            if reason is not None:
+                entry["reason"] = reason
+            return entry
+
+        recovery = result.recovery or {}
+        verified_ids = (result.decision or {}).get("verified_chunks", [])
+
+        return SafetyWallReport(
+            query=question,
+            status=result.status,
+            initial_evidence=[describe(hit.chunk.id) for hit in hits],
+            flagged_chunks=[d for d in result.detections if d["flagged"]],
+            quarantined_chunks=[describe(e["chunk_id"], e["reason"])
+                                 for e in result.excluded if e["stage"] == "injection"],
+            missing_facts=recovery.get("missing_facts", []),
+            # "Recovery attempts": every recovery candidate this run actually considered
+            # and turned away (recovery.py's own audit trail) -- accepted candidates are
+            # reported separately below, as recovered_chunks.
+            recovery_attempts=recovery.get("rejected", []),
+            recovered_chunks=recovery.get("recovered_chunks", []),
+            recovery_status=recovery.get("recovery_status"),
+            final_verified_evidence=[describe(chunk_id) for chunk_id in verified_ids],
+            decision=result.decision,
+            answer=result.answer,
+            citations=result.citations,
+            validation=result.validation,
+        )
