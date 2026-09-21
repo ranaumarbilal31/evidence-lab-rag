@@ -11,10 +11,11 @@ import streamlit as st
 
 from rag.api import Gemini, fingerprint
 from rag.config import Settings, GEN_MODEL, EMBED_MODEL
-from rag.ingest import ingest
+from rag.ingest import ingest, UploadLimits, BYOK_LIMITS, SUPPORTED_FORMATS
 from rag.models import Result, RagError, QuotaError
 from rag.pipeline import Pipeline
 from rag.quota import Governor
+from rag.providers import Connection, PersonalClient, SessionGate, check_connection
 from rag.recovery import MAX_RECOVERY_ATTEMPTS, RECOVERY_TOP_K
 from rag.samples import SCENARIOS
 from rag.store import Index, Store, build_index
@@ -49,10 +50,13 @@ def public_cache():
 def init_session():
     defaults = {"private_store": None, "private_index": None, "results": None,
                 "upload_fingerprint": None, "question_times": [], "last_submit": 0.0,
-                "result_key": None, "private_warnings": []}
+                "result_key": None, "private_warnings": [], "connection": None,
+                "sample_indexes": {}, "session_gate": None}
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if st.session_state.session_gate is None:
+        st.session_state.session_gate = SessionGate()
     if st.session_state.private_store is None:
         st.session_state.private_store = Store()
 
@@ -62,6 +66,39 @@ def clear_session():
     for key in list(st.session_state):
         del st.session_state[key]
     st.rerun()
+
+
+def reset_connection():
+    st.session_state.private_store.close()
+    st.session_state.private_store = Store()
+    st.session_state.connection = None
+    st.session_state.private_index = None
+    st.session_state.sample_indexes = {}
+    st.session_state.upload_fingerprint = None
+    st.session_state.results = None
+    st.session_state.result_key = None
+    st.session_state.private_warnings = []
+    st.session_state.pop("personal_key", None)
+
+
+def switch_to_personal():
+    reset_connection()
+    st.session_state.use_personal = True
+
+
+def quota_help():
+    if not st.session_state.get("use_personal", False):
+        st.button("Use my API key instead", on_click=switch_to_personal,
+                  key="quota_personal_" + str(st.session_state.get("quota_help_count", 0)))
+        st.session_state.quota_help_count = st.session_state.get("quota_help_count", 0) + 1
+
+
+def make_client(cache, ticket):
+    if st.session_state.get("use_personal", False):
+        if not st.session_state.connection:
+            raise RagError("Connect a compatible personal key first.")
+        return PersonalClient(st.session_state.connection, cache)
+    return Gemini(settings, governor, cache, ticket)
 
 
 def show_result(result, heading):
@@ -77,7 +114,7 @@ def show_result(result, heading):
         st.markdown("**Supporting passages**")
         for citation in result.citations:
             page = f" · page {citation['page']}" if citation["page"] else ""
-            st.caption(f"{citation['filename']}{page}")
+            st.caption(f"{citation['filename']}{page}" + (f" · {citation['location']}" if citation.get("location") else ""))
             st.text(citation["quote"])
             st.caption(f"Source: {citation['chunk_id']}")
     with st.expander("How this result was produced"):
@@ -182,7 +219,7 @@ def show_safety_wall_result(report, heading):
             st.markdown("**Supporting passages**")
             for citation in report.citations:
                 page = f" · page {citation['page']}" if citation["page"] else ""
-                st.caption(f"{citation['filename']}{page}")
+                st.caption(f"{citation['filename']}{page}" + (f" · {citation['location']}" if citation.get("location") else ""))
                 st.text(citation["quote"])
                 st.caption(f"Source: {citation['chunk_id']}")
 
@@ -202,6 +239,7 @@ def show_safety_wall_result(report, heading):
 
 
 init_session()
+st.session_state.quota_help_count = 0
 settings = read_settings()
 governor = governor_for(settings.generation, settings.embedding)
 
@@ -211,11 +249,11 @@ with st.sidebar:
     st.divider()
     st.markdown("**A small research demo**")
     st.write("Explore what happens when retrieved evidence is malicious, irrelevant, conflicting, or incomplete.")
-    st.caption("Free APIs · No local AI models")
+    st.caption("Shared demo or your API key · No local AI models")
     if settings.ready:
-        st.success("Live API configured")
+        st.success("Shared API configured")
     else:
-        st.info("Preview mode · live API setup pending")
+        st.info("Shared API unavailable · your own key can still be used")
     with st.expander("Service & usage"):
         st.write("Free hosting can sleep. API limits are shared by all visitors, and requests may pause.")
         st.json(governor.snapshot())
@@ -226,10 +264,52 @@ with st.sidebar:
 st.caption("RETRIEVE  /  CHECK  /  EXPLAIN")
 st.title("Better answers start with better evidence.")
 st.write("Compare ordinary RAG with a pipeline that checks the information before it answers.")
-st.info("Use only public or synthetic, non-sensitive documents. Document text and questions are processed by Google’s API. Uploads also pass through this hosting service.")
+st.subheader("API connection")
+use_personal = st.toggle("Use my API key", key="use_personal", on_change=reset_connection)
+if use_personal:
+    st.caption("Your key is kept only in this session. Connection checks and RAG requests may incur your provider's charges.")
+    provider = st.selectbox("Provider", ["Gemini", "OpenAI", "Custom", "Anthropic"], key="provider", on_change=reset_connection)
+    if provider == "Anthropic":
+        st.warning("Direct Anthropic keys do not provide embeddings. Use a Gemini, OpenAI, or compatible key with both embeddings and structured JSON generation.")
+    with st.form("personal_connection"):
+        personal_key = st.text_input("API key", type="password", key="personal_key", max_chars=4096)
+        endpoint = generation = embedding = ""
+        if provider == "Custom":
+            endpoint = st.text_input("HTTPS API base URL", placeholder="https://your-provider.example/v1", max_chars=2048)
+            generation = st.text_input("Generation model", max_chars=200)
+            embedding = st.text_input("Embedding model", max_chars=200)
+        connect = st.form_submit_button("Check and connect", disabled=provider == "Anthropic")
+    if connect:
+        try:
+            with st.session_state.session_gate.job():
+                reset_connection()
+                candidate = Connection.create(provider, personal_key, endpoint, generation, embedding)
+                with st.spinner("Checking embeddings and structured generation with synthetic text..."):
+                    checked = check_connection(candidate)
+                reset_connection()
+                st.session_state.connection = checked
+            st.rerun()
+        except RagError as exc:
+            st.error(str(exc))
+    if st.session_state.connection:
+        connected = st.session_state.connection
+        st.success(f"Connected to {connected.provider} / {connected.generation_model}")
+        st.caption(f"Embeddings: {connected.embedding_model}. Your provider's limits and charges apply.")
+        st.button("Disconnect", on_click=reset_connection)
+    else:
+        st.info("Connect a key with access to embeddings and structured JSON generation to enable RAG.")
+else:
+    st.write("**Shared demo API**")
+    st.caption("Shared allowance is limited. Turn on Use my API key above to use your own provider account.")
+    if not settings.ready:
+        st.info("The shared API is not configured. You can still connect your own key.")
+
+ready = bool(st.session_state.connection) if use_personal else settings.ready
+active_governor = st.session_state.session_gate if use_personal else governor
+st.info("Use only public or synthetic, non-sensitive documents. Document text and questions are sent to your selected API provider (Google in shared mode). Uploads also pass through this hosting service.")
 
 source = st.radio("Choose your evidence", ["Explore sample scenarios", "Use my documents"], horizontal=True)
-index, cache, warnings = None, public_cache(), []
+index, cache, warnings = None, (st.session_state.private_store if use_personal else public_cache()), []
 scenario_id = None
 if source == "Explore sample scenarios":
     scenario_id = st.selectbox("Scenario", list(SCENARIOS), format_func=lambda k: f"{SCENARIOS[k]['icon']} · {SCENARIOS[k]['title']}")
@@ -240,7 +320,9 @@ if source == "Explore sample scenarios":
             st.markdown(f"**{filename}**")
             st.text(text)
     index_path = ROOT / "demo" / f"{scenario_id}.index.json"
-    if index_path.exists():
+    if use_personal:
+        index = st.session_state.sample_indexes.get(scenario_id)
+    elif index_path.exists():
         try:
             index = Index.from_dict(json.loads(index_path.read_text(encoding="utf-8")))
         except (RagError, ValueError, KeyError, TypeError):
@@ -248,7 +330,7 @@ if source == "Explore sample scenarios":
     else:
         st.caption("The owner still needs to generate this scenario’s API embedding index. No live results are claimed.")
     capture_path = ROOT / "demo" / f"{scenario_id}.capture.json"
-    with st.expander("View a demonstration example", expanded=not settings.ready):
+    with st.expander("View a demonstration example", expanded=not ready):
         if capture_path.exists():
             capture = json.loads(capture_path.read_text(encoding="utf-8"))
             st.warning(f"Saved demonstration — not a live response. Captured {capture['captured_at']} using {capture['model']}.")
@@ -265,12 +347,17 @@ if source == "Explore sample scenarios":
     default_question = sample["question"]
 else:
     cache = st.session_state.private_store
-    st.caption("Up to 3 UTF-8 text/Markdown files or text PDFs · 2 MB each · 30 pages each · 50 chunks total")
-    uploads = st.file_uploader("Choose non-sensitive documents", type=["pdf", "txt", "md"], accept_multiple_files=True)
+    upload_limits = BYOK_LIMITS if use_personal else UploadLimits()
+    st.caption(f"PDF, TXT, Markdown, JSON, JSONL, CSV, TSV, DOCX, XLSX · 3 files · 2 MB each · 30 PDF pages · {upload_limits.chunks:,} chunks")
+    uploads = st.file_uploader("Choose non-sensitive documents", type=SUPPORTED_FORMATS, accept_multiple_files=True)
     default_question = ""
     consent = st.checkbox("These documents are public or synthetic and contain no sensitive, confidential, or personal information.")
     prepared = None
     current_hash = None
+    if not uploads:
+        st.session_state.private_index = None
+        st.session_state.upload_fingerprint = None
+        st.session_state.results = None
     if uploads:
         files = [(f.name, f.getvalue()) for f in uploads]
         current_hash = fingerprint([(name, hashlib.sha256(data).hexdigest()) for name, data in files])
@@ -278,16 +365,24 @@ else:
             st.session_state.private_index = None
             st.session_state.results = None
         try:
-            prepared, warnings = ingest(files)
+            prepared, warnings = ingest(files, upload_limits)
+            with st.expander("Preview extracted content"):
+                for chunk in prepared[:5]:
+                    st.caption(chunk.filename + (" · " + chunk.location if chunk.location else ""))
+                    st.text(chunk.text)
+                if len(prepared) > 5:
+                    st.caption("Showing the first five chunks; all chunks are included when indexing.")
             st.caption(f"{len(prepared)} chunks. Indexing needs at most {len(prepared)} embedding requests before cache hits and retries.")
+            for warning in warnings:
+                st.warning(warning)
         except RagError as exc:
             st.error(str(exc))
-    if st.button("Index my documents", disabled=not (prepared and consent and settings.ready)):
+    if st.button("Index my documents", disabled=not (prepared and consent and ready)):
         client = None
         try:
-            with governor.job({EMBED_MODEL: len(prepared)}) as ticket:
-                client = Gemini(settings, governor, cache, ticket)
-                progress = st.progress(0.0, text="Embedding through the free API…")
+            with active_governor.job({EMBED_MODEL: len(prepared)}) as ticket:
+                client = make_client(cache, ticket)
+                progress = st.progress(0.0, text="Embedding through your selected API…")
                 with st.spinner("Building a private session index…"):
                     built = build_index(prepared, client, lambda value: progress.progress(value))
                 st.session_state.private_index = built
@@ -296,6 +391,8 @@ else:
                 st.success("Your session index is ready.")
         except RagError as exc:
             st.warning(str(exc))
+            if isinstance(exc, QuotaError):
+                quota_help()
         finally:
             if client:
                 client.close()
@@ -316,14 +413,15 @@ pipeline_choice = st.radio("Pipeline", ["Standard RAG", "Detect & Block", "Full 
 compare = False
 if pipeline_choice != "Standard RAG":
     compare = st.checkbox("Compare with Standard RAG", value=True)
-identity = fingerprint([source, scenario_id, st.session_state.upload_fingerprint, question, pipeline_choice, compare])
+identity = fingerprint([use_personal, st.session_state.connection.public_config if use_personal and st.session_state.connection else None, source, scenario_id, st.session_state.upload_fingerprint, question, pipeline_choice, compare])
 if identity != st.session_state.result_key:
     st.session_state.results = None
-if st.button("Check the evidence", type="primary", disabled=not (settings.ready and index and question.strip())):
+if st.button("Check the evidence", type="primary", disabled=not (ready and (index or (use_personal and scenario_id)) and question.strip())):
     now = time.time()
     history = [t for t in st.session_state.question_times if now - t < 3600]
-    if now - st.session_state.last_submit < 20 or len(history) >= 5:
+    if not use_personal and (now - st.session_state.last_submit < 20 or len(history) >= 5):
         st.warning("Please wait between questions. This free demo allows five new questions per session per hour.")
+        quota_help()
     else:
         client = None
         if pipeline_choice == "Full Safety Wall":
@@ -333,10 +431,15 @@ if st.button("Check the evidence", type="primary", disabled=not (settings.ready 
         else:
             reservation = {GEN_MODEL: 1, EMBED_MODEL: 1}
         try:
-            with governor.job(reservation) as ticket:
+            with active_governor.job(reservation) as ticket:
                 st.session_state.last_submit = now
                 st.session_state.question_times = history + [now]
-                client = Gemini(settings, governor, cache, ticket)
+                client = make_client(cache, ticket)
+                if use_personal and scenario_id and index is None:
+                    sample_chunks, _ = ingest([(name, text.encode("utf-8")) for name, text in sample["documents"].items()], BYOK_LIMITS)
+                    with st.spinner("Preparing sample evidence with your embedding model…"):
+                        index = build_index(sample_chunks, client)
+                    st.session_state.sample_indexes[scenario_id] = index
                 pipeline = Pipeline(client)
                 with st.status("Retrieving and checking evidence…", expanded=True) as status:
                     if pipeline_choice == "Full Safety Wall":
@@ -367,6 +470,8 @@ if st.button("Check the evidence", type="primary", disabled=not (settings.ready 
                 st.session_state.result_key = identity
         except RagError as exc:
             st.warning(str(exc))
+            if isinstance(exc, QuotaError):
+                quota_help()
         finally:
             if client:
                 client.close()
@@ -383,8 +488,10 @@ if st.session_state.results:
             show_result(secondary, "Standard RAG")
     else:
         render_primary(primary, primary_heading)
+    if primary.status == "quota_exceeded" or (secondary and secondary.status == "quota_exceeded"):
+        quota_help()
     st.download_button("Download this comparison", json.dumps({"pipeline": primary_kind, "primary": asdict(primary),
         "compare": asdict(secondary) if secondary else None}, indent=2), "rag-comparison.json", "application/json")
 
 st.divider()
-st.caption("Evidence Lab · Research demonstration · $0 service budget · No automatic paid fallback")
+st.caption("Evidence Lab · Research demonstration · Shared free demo or your own API account · No automatic provider fallback")

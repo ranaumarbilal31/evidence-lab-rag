@@ -1,5 +1,36 @@
 # Evidence Lab
 
+## Bring your own API key
+
+The shared demo remains available, but its allowance is shared by all visitors. When it is exhausted, turn on **Use my API key** above the evidence selector. Select a provider, enter your key, and click **Check and connect**. The app tests embeddings and structured generation using two small synthetic requests; these and subsequent RAG requests may incur your provider's charges.
+
+- **Gemini:** `gemini-3.6-flash` and `gemini-embedding-2` (768 dimensions).
+- **OpenAI:** `gpt-4.1-mini` and `text-embedding-3-small`.
+- **Custom:** a public HTTPS base URL on port 443, generation model, and embedding model. The endpoint must support OpenAI-compatible `/chat/completions` with strict JSON-schema output and `/embeddings` with float vectors. Both operations must accept the same key. Compatibility is checked, not assumed from the provider name.
+- **Anthropic directly:** unsupported because its key does not provide embeddings. Use one of the compatible options above. There is no second-key, keyword-search, or local-model fallback.
+
+Personal connections work without owner secrets and independently of the shared quota, queue, and five-question/hour limit. Each session permits one active operation; provider quotas and credits still apply. Keys from the same provider project can share provider limits. The app never silently switches to the owner's key or another provider.
+
+Credentials, visitor results, and embedding caches stay in private session memory. **Disconnect**, changing provider/API mode, replacing the connection, or **Clear my session** discards connection-specific state. Keys are excluded from result downloads and application logs. A custom endpoint receives your key and evidence: use only a provider you trust. Redirects and endpoints resolving to private/local addresses are blocked. Public samples are embedded with your selected model when first used; saved demonstrations remain clearly labeled historical results.
+
+## Supported uploads
+
+Choose **Use my documents**, upload files, inspect **Preview extracted content**, confirm the content is non-sensitive, and click **Index my documents**. Supported extensions are PDF (extractable text), TXT, MD, JSON, JSONL, CSV, TSV, DOCX, and XLSX. Text formats must use UTF-8.
+
+JSON accepts objects or arrays, including the repository's existing corpus format:
+
+```json
+[
+  {"chunk_id": "leave-policy", "text": "Employees receive 20 days of annual leave.", "source_doc": "Employee handbook"}
+]
+```
+
+Ordinary nested JSON fields become labeled text. JSONL accepts one record per non-empty line. External chunk IDs are source metadata; internal IDs are generated independently, and `attacked` labels never determine safety. CSV/TSV and each XLSX sheet use the first row as column labels. DOCX paragraphs and tables are extracted. Citations retain file, JSON record/line, sheet/row, paragraph, or PDF-page references. XLSX reads saved cell values; formulas are not executed or recalculated, and missing cached formula values are blank with an explicit notice.
+
+Limits: three files, 2 MB each, 30 PDF pages each; 50 chunks in shared mode or 5,000 with a personal connection. Office files have a 20 MB decompressed limit; workbooks are limited to 100 sheets, 100,000 rows, and 1,000 columns. Oversized/invalid files fail explicitly rather than being silently truncated. Completed embedding requests remain cached within the session so interrupted indexing can resume. Scans/OCR, images, audio/video, archives, encrypted files, macro-enabled files, and legacy DOC/XLS are unsupported.
+
+The bundled research corpus is not loaded automatically. It can be uploaded as JSON using a personal connection. Document text and questions go to the selected provider and are also processed by the Streamlit host. Use only public or synthetic, non-sensitive content; the selected provider's data and billing policies apply.
+
 A free-API research demo comparing ordinary RAG with pipelines that screen retrieved evidence, quarantine suspected prompt injection, attempt bounded evidence recovery, and validate answers before release. **No local AI models and no automatic paid fallback.**
 
 ## Why this exists
@@ -53,7 +84,7 @@ Still open, and not to be claimed as done: independent human review of the 150-c
 
 Public demo: **https://evidence-lab-rag.streamlit.app/**. Source: https://github.com/ranaumarbilal31/evidence-lab-rag.
 
-All five sample embedding indexes are generated through the API. All five real baseline/protected captures are available, including conflict and insufficient evidence. The provider reported a free generation request limit of 20, so the application cap is 20 per day. No billing or alternate provider is enabled. The app displays clearly labeled illustrations where captures are unavailable. Human-scored research and hosted acceptance remain incomplete; see [RELEASE_STATUS.md](RELEASE_STATUS.md).
+All five sample embedding indexes are generated through the API. All five real baseline/protected captures are available, including conflict and insufficient evidence. The provider reported a free generation request limit of 20, so the application cap is 20 per day. That historical shared-demo run used no billing or alternate provider; visitors can now explicitly connect their own compatible provider account. The app displays clearly labeled illustrations where captures are unavailable. Human-scored research and hosted acceptance remain incomplete; see [RELEASE_STATUS.md](RELEASE_STATUS.md).
 
 The public UI now offers a pipeline selector — Standard RAG, Detect & Block, and Full Safety Wall (detection, quarantine, missing-fact analysis, and bounded evidence recovery) — with a 9-stage, expandable breakdown of retrieved evidence, safety screening, quarantine, missing facts, recovery, verified evidence, decision, final answer, and citation validation for the Full Safety Wall pipeline. See [Tests and evaluation](#tests-and-evaluation) below for the matching research-mode comparison.
 
@@ -67,9 +98,9 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
 ```
 
-Open `http://127.0.0.1:8501`. No API key is needed to inspect the UI, read synthetic scenarios, or run mocked tests. Live controls remain disabled without valid setup.
+Open `http://127.0.0.1:8501`. No API key is needed to inspect the UI, read synthetic scenarios, or run mocked tests. Live controls require either valid shared setup or a checked personal connection.
 
-## Enable free API processing
+## Enable shared free API processing
 
 1. Create/select a dedicated **Free-tier** Gemini Developer API project in Google AI Studio. Keep Cloud Billing disabled. Confirm both configured models are available to your account.
 2. Copy `secrets.example.toml` to `.streamlit/secrets.toml` (the destination is ignored by Git).
@@ -82,7 +113,7 @@ Open `http://127.0.0.1:8501`. No API key is needed to inspect the UI, read synth
 
 This performs actual API calls, caches completed stages, and stops on quota exhaustion. Run the command again after quota resets. It never switches models or enables billing. Review every capture's answer and citations, then set its `human_reviewed` field to `true` only after review. Incorrect results remain research findings; adjust the implementation using development examples and capture again explicitly when needed.
 
-The generation model is `gemini-2.5-flash`; embeddings use `gemini-embedding-2`, 768 dimensions, one independent text per request and no unsupported `task_type`. All AI work goes to Google's API. The SDK is configured to use the Developer API's fixed endpoint. Metadata records exact configuration and prompt version.
+The shared generation model is `gemini-3.6-flash`; embeddings use `gemini-embedding-2`, 768 dimensions, one independent text per request and no unsupported `task_type`. Shared-mode AI work goes to Google's API; personal connections use the selected provider. Historical captures retain their original model metadata. The SDK is configured to use the Developer API's fixed endpoint. Metadata records exact configuration and prompt version.
 
 Your API key cannot prove your project is free. The no-charge boundary is a Free-tier project with billing disabled, not the application's counters. Free quotas can change or be unavailable. See [pricing](https://ai.google.dev/gemini-api/docs/pricing), [active limits](https://ai.google.dev/gemini-api/docs/rate-limits), and [data terms](https://ai.google.dev/gemini-api/terms).
 

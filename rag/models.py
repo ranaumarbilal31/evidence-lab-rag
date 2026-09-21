@@ -77,6 +77,7 @@ class Chunk:
     filename: str
     page: int | None
     text: str
+    location: str | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +113,7 @@ class RecoveredChunk:
     score: float
     document_hash: str = ""
     page: int | None = None
+    location: str | None = None
 
 
 @dataclass

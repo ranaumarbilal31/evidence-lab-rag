@@ -41,10 +41,14 @@ class Store:
 
 
 class Index:
-    def __init__(self, chunks, vectors):
+    def __init__(self, chunks, vectors, config=None):
+        self.config = dict(config or INDEX_CONFIG)
+        self.dimensions = self.config["dimensions"]
+        if not isinstance(self.dimensions, int) or not 1 <= self.dimensions <= 8192:
+            raise RagError("Invalid embedding dimensions.")
         self.chunks = chunks
         array = np.asarray(vectors, dtype=np.float32)
-        if (array.shape != (len(chunks), DIMENSIONS) or not len(chunks)
+        if (array.shape != (len(chunks), self.dimensions) or not len(chunks)
                 or not np.isfinite(array).all() or len({c.id for c in chunks}) != len(chunks)):
             raise RagError("Invalid or incompatible document index.")
         norms = np.linalg.norm(array, axis=1, keepdims=True)
@@ -54,7 +58,7 @@ class Index:
 
     def retrieve(self, vector, k=8, exclude_ids=None):
         query = np.asarray(vector, dtype=np.float32)
-        if query.shape != (DIMENSIONS,) or not np.isfinite(query).all() or not np.linalg.norm(query):
+        if query.shape != (self.dimensions,) or not np.isfinite(query).all() or not np.linalg.norm(query):
             raise RagError("The query embedding is invalid.")
         scores = self.vectors @ (query / np.linalg.norm(query))
         order = np.argsort(-scores, kind="stable")
@@ -65,13 +69,13 @@ class Index:
         return [Hit(self.chunks[i], float(scores[i])) for i in order[:k]]
 
     def to_dict(self):
-        return {"config": INDEX_CONFIG, "chunks": [asdict(c) for c in self.chunks], "vectors": self.vectors.tolist()}
+        return {"config": self.config, "chunks": [asdict(c) for c in self.chunks], "vectors": self.vectors.tolist()}
 
     @classmethod
-    def from_dict(cls, data):
-        if data.get("config") != INDEX_CONFIG:
+    def from_dict(cls, data, expected_config=None):
+        if data.get("config") != (expected_config or INDEX_CONFIG):
             raise RagError("The embedding model or settings changed. Rebuild the index explicitly.")
-        return cls([Chunk(**item) for item in data["chunks"]], data["vectors"])
+        return cls([Chunk(**item) for item in data["chunks"]], data["vectors"], data["config"])
 
 
 def build_index(chunks, client, progress=None):
@@ -80,4 +84,4 @@ def build_index(chunks, client, progress=None):
         vectors.append(client.embed(chunk.text))
         if progress:
             progress((i + 1) / len(chunks))
-    return Index(chunks, vectors)
+    return Index(chunks, vectors, getattr(client, "index_config", None))

@@ -40,7 +40,7 @@ def check_sources(sources, chunks, required=False):
         if key not in seen:
             seen.add(key)
             result.append({"chunk_id": chunk.id, "filename": chunk.filename,
-                           "page": chunk.page, "quote": source.quote})
+                           "page": chunk.page, "quote": source.quote, **({"location": chunk.location} if chunk.location else {})})
     return result
 
 
@@ -78,7 +78,8 @@ class Pipeline:
         before = dict(self.client.usage)
         result = Result("error", "No answer was produced.", configuration={
             "generation_model": GEN_MODEL, "embedding_model": EMBED_MODEL,
-            "prompt_version": PROMPT_VERSION, "protected": protected, "disabled": disable})
+            "prompt_version": PROMPT_VERSION, "protected": protected, "disabled": disable,
+            **getattr(self.client, "configuration", {})})
 
         def ask(stage, payload):
             tick = time.perf_counter()
@@ -132,7 +133,7 @@ class Pipeline:
                     recovery = recover_evidence(question, quarantined, set(chunks), ask, self.client.embed, retrieve_fn)
                     result.recovery = asdict(recovery)
                     for rc in recovery.recovered_chunks:
-                        chunks[rc.chunk_id] = Chunk(rc.chunk_id, rc.document_hash, rc.source_doc, rc.page, rc.text)
+                        chunks[rc.chunk_id] = Chunk(rc.chunk_id, rc.document_hash, rc.source_doc, rc.page, rc.text, rc.location)
             if not chunks:
                 return abstain("All retrieved evidence was excluded. There is not enough accepted evidence to answer.")
             claims = []
@@ -264,7 +265,7 @@ class Pipeline:
         by_id = {hit.chunk.id: hit.chunk for hit in hits}
         for recovered in (result.recovery or {}).get("recovered_chunks", []):
             by_id[recovered["chunk_id"]] = Chunk(recovered["chunk_id"], recovered.get("document_hash", ""),
-                recovered["source_doc"], recovered.get("page"), recovered["text"])
+                recovered["source_doc"], recovered.get("page"), recovered["text"], recovered.get("location"))
 
         def describe(chunk_id, reason=None):
             chunk = by_id.get(chunk_id)
