@@ -39,7 +39,7 @@ A quarantined chunk can never re-enter trusted evidence; recovery replaces the m
 |---|---|---|
 | **Standard RAG** | `baseline` | No safety checks — the control condition. |
 | **Detect & Block** | `protected` | Detects and quarantines, then abstains if that leaves nothing to answer from. |
-| **Full Safety Wall** | `safety_wall` | Detect & Block, plus missing-fact analysis and bounded recovery. |
+| **Full Safety Walls** | `safety_wall` | Detect & Block, plus missing-fact analysis and bounded recovery. |
 
 The public app's pipeline selector (Standard RAG / Detect & Block / Full Safety Wall) lets you see this live, with a 9-stage expandable breakdown for Full Safety Wall: retrieved evidence, safety screening, quarantine, missing fact, evidence recovery, verified evidence, decision, final answer, and citation validation.
 
