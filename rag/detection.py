@@ -30,6 +30,8 @@ from __future__ import annotations
 from typing import Callable, Mapping
 
 from .models import Chunk, DetectionResult, Safety, SchemaError
+from .obfuscation import normalize_text
+from .semantic_detector import vector_scan, VectorAttackDetector, DEFAULT_SIMILARITY_THRESHOLD
 
 import re
 
@@ -61,6 +63,10 @@ PATTERNS = [
         r"(?:api.key|secret|system.prompt|password|hidden\s+instructions?|system\s+information)", re.I)),
     ("generic_ai_directive", re.compile(
         r"\b(?:you (?:are|must|should) now|as an ai,? you (?:must|should)|new instructions? for you)\b", re.I)),
+    ("obfuscated_directive", re.compile(
+        r"\b(?:decode|execute|run)\s+(?:the\s+following\s+)?(?:base64|rot13|hex|encoded)", re.I)),
+    ("comment_smuggling", re.compile(
+        r"<!--\s*(?:system|override|developer|instruction|note)", re.I)),
 ]
 
 # Non-calibrated ordinal confidence per classifier decision. These are fixed constants
@@ -71,8 +77,9 @@ HEURISTIC_CONFIDENCE = 1.0
 
 def heuristic_scan(text: str) -> tuple[str, str] | None:
     """Return (rule_name, matched_text) for the first matching rule, else None."""
+    cleaned = normalize_text(text)
     for name, pattern in PATTERNS:
-        match = pattern.search(text)
+        match = pattern.search(cleaned)
         if match:
             return name, match.group(0)
     return None
@@ -84,7 +91,9 @@ def suspicious(text: str) -> bool:
 
 
 def detect(chunks: Mapping[str, Chunk], question: str,
-           ask: Callable[[str, dict], Safety]) -> list[DetectionResult]:
+           ask: Callable[[str, dict], Safety],
+           enable_vector: bool = True,
+           vector_threshold: float = DEFAULT_SIMILARITY_THRESHOLD) -> list[DetectionResult]:
     """Run the Safety Wall over every chunk in `chunks`.
 
     `ask(stage, payload)` is the caller's existing model-call wrapper (see
@@ -99,13 +108,26 @@ def detect(chunks: Mapping[str, Chunk], question: str,
     results: dict[str, DetectionResult] = {}
     remaining: dict[str, Chunk] = {}
     for chunk_id, chunk in chunks.items():
-        hit = heuristic_scan(chunk.text)
+        cleaned_text = normalize_text(chunk.text)
+        hit = heuristic_scan(cleaned_text)
         if hit:
             name, matched = hit
             results[chunk_id] = DetectionResult(
                 chunk_id=chunk_id, flagged=True,
                 flag_reason=f"Heuristic rule '{name}' matched: {matched!r}",
                 confidence=HEURISTIC_CONFIDENCE, source="heuristic")
+        elif enable_vector:
+            try:
+                is_atk, score, matched_sig = vector_scan(cleaned_text, threshold=vector_threshold)
+                if is_atk:
+                    results[chunk_id] = DetectionResult(
+                        chunk_id=chunk_id, flagged=True,
+                        flag_reason=f"Vector similarity ({score:.2f} >= {vector_threshold:.2f}) matched signature: {matched_sig!r}",
+                        confidence=score, source="vector_similarity")
+                else:
+                    remaining[chunk_id] = chunk
+            except Exception:
+                remaining[chunk_id] = chunk
         else:
             remaining[chunk_id] = chunk
 

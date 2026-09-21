@@ -2,6 +2,7 @@ import io
 
 import numpy as np
 import pytest
+pypdf = pytest.importorskip("pypdf", reason="pypdf is required for PDF ingestion tests")
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, NameObject, DictionaryObject
 

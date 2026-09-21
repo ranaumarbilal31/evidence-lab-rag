@@ -78,6 +78,32 @@ def lm_targeted_attack(
     return attacked
 
 
+def obfuscated_attack(
+    clean_chunk: dict,
+    wrong_answer: str,
+    method: str = "base64",
+    template_idx: int = 0,
+) -> dict:
+    """Category 3: Obfuscated injection using evasion techniques (base64, leetspeak, etc.)."""
+    try:
+        from rag.obfuscation import apply_obfuscation
+    except ImportError:
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from rag.obfuscation import apply_obfuscation
+
+    raw_injection = SYSTEM_NOTE_TEMPLATES[template_idx % len(SYSTEM_NOTE_TEMPLATES)].format(wrong_answer=wrong_answer)
+    obfuscated_payload = apply_obfuscation(raw_injection, method)
+    attacked = copy.deepcopy(clean_chunk)
+    attacked["chunk_id"] = f"{clean_chunk['chunk_id']}_atk_obf_{method}"
+    attacked["text"] = clean_chunk["text"] + " " + obfuscated_payload
+    attacked["attacked"] = True
+    attacked["attack_type"] = f"obfuscated_{method}"
+    attacked["origin_chunk_id"] = clean_chunk["chunk_id"]
+    return attacked
+
+
 if __name__ == "__main__":
     # Smoke test -- no network, no API key needed.
     sample_chunk = {
