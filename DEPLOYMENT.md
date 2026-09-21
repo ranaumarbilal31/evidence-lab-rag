@@ -4,9 +4,11 @@ Target: **Streamlit Community Cloud**, an HTTPS `streamlit.app` URL. The app mus
 
 ## Owner prerequisites
 
+Owner Gemini secrets are required only for the shared demo. Personal-key mode works without them. Install the updated `requirements.txt`, including the bounded DOCX/XLSX extraction dependencies. No visitor keys belong in deployment secrets, environment variables, source control, or persistent storage.
+
 - A GitHub account and a repository you control.
 - Streamlit Community Cloud sign-in with access to that repository. Any account/terms acceptance or access grants must be completed by the owner.
-- Gemini Free-tier credentials and active per-model limits. Billing remains disabled.
+- For shared mode only: Gemini Free-tier credentials and active per-model limits. Owner billing remains disabled.
 
 The app is deployed at **https://evidence-lab-rag.streamlit.app/** from `ranaumarbilal31/evidence-lab-rag`, branch `main`, entrypoint `app.py`. See [RELEASE_STATUS.md](RELEASE_STATUS.md) for completed checks and pending acceptance work.
 
@@ -27,6 +29,12 @@ Paste the configured secret values in Community Cloud **Secrets**, never into Gi
 Community Cloud's filesystem is not durable. Demo embeddings and captures are versioned read-only assets; visitor uploads/indexes are private session memory. No startup embedding calls or hidden keep-alive traffic are used. App counters may reset on restart; provider quotas are authoritative. [Hosting](https://docs.streamlit.io/deploy/streamlit-community-cloud), [storage limits](https://docs.streamlit.io/develop/concepts/connections/connecting-to-data).
 
 ## Required hosted acceptance checks
+
+- With shared credentials absent or shared quota exhausted, connect a compatible personal key and run Standard RAG, Detect & Block, and Full Safety Wall, including a JSON upload and source citations.
+- Check Gemini and OpenAI with actual account/model access. For a custom endpoint, verify both required API operations. Check that unsupported Anthropic keys receive an explanation rather than a generation-only connection.
+- Verify two personal sessions remain isolated and disconnect/reconnect removes old indexes/results. Changing the provider must require reconnecting and rebuilding indexes.
+- Verify invalid credentials, missing model access, insufficient credit, and rate limits produce clear messages without exposing response bodies or credentials. Connection probes use synthetic text and may incur charges.
+- Inspect upload previews for JSON/JSONL, CSV/TSV, DOCX, and XLSX. Verify provenance in citations and readable rejection of complex/unsupported content.
 
 - Open the public link in a signed-out browser; no visitor account, key, or local software is needed.
 - Run all five sample questions using the live API. Check baseline comparison, citations, exclusions, conflict behavior, and missing-evidence behavior. Save observed outcomes; failures remain failures.

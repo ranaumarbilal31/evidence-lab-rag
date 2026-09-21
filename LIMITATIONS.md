@@ -24,3 +24,10 @@ Fallback expected-behavior illustrations are manually authored. Unit tests injec
 The online deployment exists at https://evidence-lab-rag.streamlit.app/. All five live captures are available. Human label review, full baseline/ablation outcomes, and complete hosted-browser acceptance are pending. The baseline also resisted the captured injection example; that example establishes no relative attack-success reduction. Do not claim research targets were met, 100% security, or independent human validation.
 
 Targets remain: at least 50% relative attack-success reduction when baseline attacks succeed, at least 80% conflict and insufficiency recall, and no more than a 10-percentage-point clean-answer accuracy loss. Report sample counts, operational failures, false positives, and confidence limitations alongside results.
+
+## Personal keys and structured uploads
+
+- BYOK removes contention with the shared demo, not provider rate limits or billing. Model access and endpoint compatibility can change after a successful connection check. Only endpoints supporting embeddings and strict structured generation with one key are supported.
+- Personal keys are session-only. The selected provider receives the key, extracted text, and questions; its own retention and pricing policies apply. Disconnecting does not delete provider-side records.
+- JSON nesting is bounded; spreadsheets are treated as labeled data rows, not calculation engines. DOCX extraction covers body paragraphs/tables, not images or complex layout; PDF scans still need external OCR. Formula cells require saved cached values.
+- Upload limits do not imply every chunk fits a single answer: retrieval and the existing conservative context budget still select a smaller evidence set. Large personal indexes can take many embedding requests; in-session cached work can resume after provider failures.

@@ -167,7 +167,7 @@ def recover(question: str, quarantined: Mapping[str, Chunk], already_trusted_ids
                 rejected.append({"chunk_id": candidate.id, "reason": "Candidate did not verifiably support the missing fact."})
                 continue
             verified.append(RecoveredChunk(candidate.id, candidate.text, candidate.filename, hit.score,
-                                            candidate.document_hash, candidate.page))
+                                            candidate.document_hash, candidate.page, candidate.location))
         if verified:
             break  # usable evidence found within budget; do not spend another attempt
 
