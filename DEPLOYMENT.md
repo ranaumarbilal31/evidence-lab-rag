@@ -41,6 +41,29 @@ Community Cloud's filesystem is not durable. Demo embeddings and captures are ve
 
 ## Required hosted acceptance checks
 
+### Recover an import failure after a source update
+
+If the public page reports `ImportError: cannot import name 'AccessError' from
+'rag.models'`, first confirm that the deployed commit contains `AccessError` in
+`rag/models.py` and run `python -m pytest -q` from a fresh checkout. The September
+23, 2026 incident occurred after a source-only update: the current source contained
+the class and all 186 tests passed, but the running host still failed at the import.
+Rebooting restored the public homepage, saved comparison, and document upload
+screen without changing application code, consistent with stale loaded modules.
+
+Use **Manage app → Reboot app → Reboot** to restart the Python process and reload
+all modules together. A browser refresh or Streamlit script rerun alone does not
+restart the server. Rebooting interrupts active sessions and discards their
+temporary uploads. Reopen the public URL and verify the sample and personal-key
+screens before declaring recovery. If it still fails, inspect the new logs and
+deployed revision; do not hide the import failure or substitute a different error
+class, which could break credential rejection handling.
+
+The GitHub **Application checks** workflow runs the test suite, including no-key
+Streamlit startup and shared credential error tests, on pushes and pull requests.
+These checks validate a fresh process; hosted verification after updates is still
+required to detect stale running modules.
+
 - With shared credentials absent or shared quota exhausted, connect a compatible personal key and run Standard RAG, Detect & Block, and Full Safety Wall, including a JSON upload and source citations.
 - Check Gemini and OpenAI with actual account/model access. For a custom endpoint, verify both required API operations. Check that unsupported Anthropic keys receive an explanation rather than a generation-only connection.
 - Verify two personal sessions remain isolated and disconnect/reconnect removes old indexes/results. Changing the provider must require reconnecting and rebuilding indexes.
