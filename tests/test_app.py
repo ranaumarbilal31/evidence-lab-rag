@@ -2,6 +2,20 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 
+def test_research_pause_opens_existing_byok_without_live_calls():
+    app = AppTest.from_file(str(Path(__file__).parents[1] / 'app.py'), default_timeout=20)
+    app.secrets['GEMINI_API_KEY'] = ''
+    app.secrets['FREE_TIER_CONFIRMED'] = False
+    app.secrets['RESEARCH_PAUSE_SHARED'] = True
+    app.run()
+    assert not app.exception
+    action = next(b for b in app.button if b.label == 'Use my API key instead')
+    action.click().run()
+    assert not app.exception
+    assert app.session_state['use_personal'] is True
+    assert any(t.label == 'API key' for t in app.text_input)
+
+
 def test_no_key_preview_is_honest_and_all_scenarios_render(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     app = AppTest.from_file(str(Path(__file__).parents[1] / "app.py"), default_timeout=20)

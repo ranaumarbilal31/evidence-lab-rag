@@ -125,3 +125,24 @@ def test_protected_vs_safety_wall_target_answers_q2_q3_q4(tmp_path):
     assert target["benign_false_positive_n_safety_wall"] == 1
     assert target["additional_benign_false_positives"] == 1
     assert target["recovery_overhead_seconds"] == 3.0
+    assert target['new_benign_false_positives'] == 1
+    assert target['paired_uncached_latency_n'] == 3
+
+
+def test_review_sources_do_not_mix(tmp_path):
+    test_human_paired_metrics_and_operational_failures(tmp_path)
+    assert summarize_scores(tmp_path, 'assistant')['live_runs'] == 0
+    assert summarize_scores(tmp_path, 'assistant')['provisional'] is True
+    # Even copying human scores cannot admit human-provenance runs into assistant metrics.
+    (tmp_path / 'assistant-scores.csv').write_bytes((tmp_path / 'human-scores.csv').read_bytes())
+    assert not summarize_scores(tmp_path, 'assistant')['targets']
+
+
+def test_duplicate_scoring_rows_rejected(tmp_path):
+    import pytest
+    test_human_paired_metrics_and_operational_failures(tmp_path)
+    path = tmp_path / 'human-scores.csv'
+    lines = path.read_text().splitlines()
+    path.write_text('\n'.join(lines + [lines[1]]))
+    with pytest.raises(ValueError, match='Duplicate'):
+        summarize_scores(tmp_path)

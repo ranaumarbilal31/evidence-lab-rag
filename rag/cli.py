@@ -22,6 +22,8 @@ from .pipeline import Pipeline
 from .quota import Governor
 from .samples import SCENARIOS
 from .store import Store, Index, build_index
+from .research import research_lock, validate_cases, require_reviews, experiment, experiment_folder, freeze
+from .shared import SharedPool, SharedClient
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = ["baseline", "protected", "without_injection", "without_relevance", "without_conflict",
@@ -51,8 +53,11 @@ def settings_and_governor():
     settings = Settings.from_mapping(values)
     if not settings.ready:
         raise RagError("Configure .streamlit/secrets.toml with a Free-tier Gemini key, billing confirmation, and active quotas. Do not put the key in chat.")
-    return settings, Governor({GEN_MODEL: settings.generation, EMBED_MODEL: settings.embedding},
-                             ROOT / "research" / "quota.json")
+    return settings, SharedPool(settings, ROOT / 'research')
+
+
+def owner_client(settings, governor, cache, ticket=None):
+    return SharedClient(governor, cache) if isinstance(governor, SharedPool) else Gemini(settings, governor, cache, ticket)
 
 
 class MemorySample:
@@ -85,7 +90,7 @@ def prepare_demo(capture=False):
             else:
                 chunks, _ = ingest([(n, t.encode()) for n, t in sample["documents"].items()])
                 with governor.job({EMBED_MODEL: len(chunks)}) as ticket:
-                    client = Gemini(settings, governor, cache, ticket)
+                    client = owner_client(settings, governor, cache, ticket)
                     try:
                         index = build_index(chunks, client)
                     finally:
@@ -97,7 +102,7 @@ def prepare_demo(capture=False):
                 if capture_path.exists():
                     continue
                 with governor.job({GEN_MODEL: 7, EMBED_MODEL: 1}) as ticket:
-                    client = Gemini(settings, governor, cache, ticket)
+                    client = owner_client(settings, governor, cache, ticket)
                     try:
                         hits = index.retrieve(client.embed(sample["question"]))
                         pipeline = Pipeline(client)
@@ -124,18 +129,23 @@ def evaluate(args):
     if not source.exists():
         raise RagError("Generate and human-review the dataset first: python -m rag.cli dataset")
     cases = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+    validate_cases(cases)
     selected = [c for c in cases if c["split"] == args.split][:args.limit]
-    if not all(c["human_label_reviewed"] is True for c in selected):
-        raise RagError("Review expected labels in cases.jsonl and set human_label_reviewed=true per reviewed case before evaluation.")
+    review_source = getattr(args, 'review_source', 'human')
+    selected, excluded = require_reviews(ROOT / 'research', selected, review_source)
+    folder, manifest_id = experiment(ROOT, cases, settings, review_source,
+        getattr(args, 'manifest', None), args.split == 'held_out')
+    print(f'Experiment: {manifest_id}; review source: {review_source}; excluded labels: {len(excluded)}')
+    dump(folder / f'{args.split}-review-exclusions.json', {'case_ids': excluded, 'review_source': review_source})
     mode_list = MODES if args.mode == "all" else [args.mode]
     print(f"Selected {len(selected)} cases × {len(mode_list)} modes. Up to 6 checking/generation calls per "
-          f"protected mode (up to 10 for safety_wall, which adds bounded recovery), 1 baseline call, plus "
+          f"protected mode (up to 13 for safety_wall, including recovery screening), 1 baseline call, plus "
           f"embeddings and retries. Runs checkpoint and may require multiple quota resets.")
-    outdir = ROOT / "research" / "runs"
-    cache = Store(ROOT / "research" / "eval-cache.sqlite")
+    outdir = folder / "runs"
+    cache = Store(folder / "eval-cache.sqlite")
     try:
         for case in selected:
-            identity = fingerprint([case, GEN_MODEL, EMBED_MODEL, PROMPT_VERSION])
+            identity = fingerprint([case, manifest_id])
             retrieval_path = outdir / f"{case['id']}-{identity[:12]}.retrieval.json"
             index = None
             # Shared initial retrieval is reused exactly across modes and resumptions.
@@ -148,7 +158,7 @@ def evaluate(args):
             else:
                 chunks, _ = ingest([(n, t.encode()) for n, t in case["documents"].items()], LOCAL_LIMITS)
                 with governor.job({EMBED_MODEL: len(chunks) + 1}) as ticket:
-                    client = Gemini(settings, governor, cache, ticket)
+                    client = owner_client(settings, governor, cache, ticket)
                     try:
                         index = build_index(chunks, client)
                         hits = index.retrieve(client.embed(case["question"]))
@@ -174,7 +184,7 @@ def evaluate(args):
                     # cache file so this only ever happens the first time.
                     chunks, _ = ingest([(n, t.encode()) for n, t in case["documents"].items()], LOCAL_LIMITS)
                     with governor.job({EMBED_MODEL: len(chunks)}) as ticket:
-                        client = Gemini(settings, governor, cache, ticket)
+                        client = owner_client(settings, governor, cache, ticket)
                         try:
                             index = build_index(chunks, client)
                         finally:
@@ -183,11 +193,14 @@ def evaluate(args):
                     saved["index"] = index.to_dict()
                     dump(retrieval_path, saved)
                 # Generation caches are isolated by mode so ablations are independently run.
-                mode_cache = Store(ROOT / "research" / f"{mode}-cache.sqlite")
+                mode_cache = Store(folder / f"{mode}-cache.sqlite")
                 try:
-                    expected_calls = 1 if mode == "baseline" else (10 if mode == "safety_wall" else 6)
-                    with governor.job({GEN_MODEL: expected_calls}) as ticket:
-                        client = Gemini(settings, governor, mode_cache, ticket)
+                    expected_calls = 1 if mode == "baseline" else (13 if mode == "safety_wall" else 6)
+                    reservation = {GEN_MODEL: expected_calls}
+                    if mode == 'safety_wall':
+                        reservation[EMBED_MODEL] = 1
+                    with governor.job(reservation) as ticket:
+                        client = owner_client(settings, governor, mode_cache, ticket)
                         try:
                             tick = time.perf_counter()
                             with MemorySample() as memory:
@@ -197,6 +210,7 @@ def evaluate(args):
                                     recover=mode == "safety_wall",
                                     retrieve_fn=index.retrieve if mode == "safety_wall" else None)
                             row = {"case_id": case["id"], "fingerprint": identity, "split": case["split"],
+                                "manifest_id": manifest_id, "review_source": review_source,
                                 "category": case["category"], "mode": mode, "query": case["question"],
                                 "result": asdict(result),
                                 "wall_seconds": time.perf_counter() - tick, "peak_rss_mb": memory.peak / 1024**2,
@@ -217,16 +231,19 @@ HUMAN_FIELDS = ["reviewed", "answer_correct", "citations_supported", "attack_suc
                 "observed_conflict", "observed_abstention", "benign_false_positive", "notes"]
 
 
-def export_scores():
-    out = ROOT / "research" / "human-scores.csv"
+def export_scores(review_source='human', folder=None):
+    folder = folder or ROOT / 'research'
+    out = folder / f"{review_source}-scores.csv"
     prior = {}
     if out.exists():
         with out.open(newline="", encoding="utf-8") as handle:
             prior = {row["run_file"]: row for row in csv.DictReader(handle)}
     rows = []
-    for path in sorted((ROOT / "research" / "runs").glob("*.json")):
+    for path in sorted((folder / "runs").glob("*.json")):
         run = json.loads(path.read_text())
         if "result" not in run:
+            continue
+        if run.get('review_source', 'human') != review_source:
             continue
         row = {"run_file": path.name, "case_id": run["case_id"], "mode": run["mode"], "category": run["category"],
                "status": run["result"]["status"], "answer": run["result"]["answer"],
@@ -237,13 +254,14 @@ def export_scores():
         writer = csv.DictWriter(handle, fieldnames=["run_file", "case_id", "mode", "category", "status", "answer"] + HUMAN_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
-    print(f"Exported {len(rows)} rows for human scoring. Fill binary fields with 0 or 1; use reviewed=1 only after review.")
+    print(f"Exported {len(rows)} rows for {review_source} scoring. Fill binary fields with 0 or 1; use reviewed=1 only after review.")
 
 
-def summarize():
+def summarize(review_source='human', folder=None):
     from .evaluation import summarize_scores
-    result = summarize_scores(ROOT / "research")
-    dump(ROOT / "research" / "summary.json", result)
+    folder = folder or ROOT / 'research'
+    result = summarize_scores(folder, review_source)
+    dump(folder / ('summary.json' if review_source == 'human' else 'assistant-summary.json'), result)
     print(json.dumps(result, indent=2))
 
 
@@ -252,7 +270,8 @@ def package():
     target = ROOT / "dist" / "evidence-lab-deploy.zip"
     target.parent.mkdir(exist_ok=True)
     files = [ROOT / name for name in ["app.py", "requirements.txt", "requirements-dev.txt", ".gitignore",
-        "README.md", "DEPLOYMENT.md", "LIMITATIONS.md", "RELEASE_STATUS.md", "secrets.example.toml", ".streamlit/config.toml"]]
+        "README.md", "DEPLOYMENT.md", "LIMITATIONS.md", "RELEASE_STATUS.md", "secrets.example.toml", ".streamlit/config.toml",
+        "MODEL_QUOTA_REVIEW.md", "RESEARCH_WORKFLOW.md", "RESEARCH_RESULTS.md", "DETECTION_EXPERIMENTS.md", "SHARED_KEYS.md"]]
     files += list((ROOT / "rag").glob("*.py")) + list((ROOT / "tests").glob("*.py"))
     files += list((ROOT / "demo").glob("*.json"))
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -285,27 +304,63 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("dataset")
+    probes_parser = sub.add_parser('probes')
+    probes_parser.add_argument('--live', action='store_true', help='Explicitly spend API quota on development detector comparison.')
+    probes_parser.add_argument('--vector', action='store_true', help='Include experimental vector screening; requires --live.')
     prepare = sub.add_parser("prepare-demo")
     prepare.add_argument("--capture", action="store_true")
     evaluate_parser = sub.add_parser("evaluate")
     evaluate_parser.add_argument("--split", choices=["development", "held_out"], default="development")
     evaluate_parser.add_argument("--mode", choices=MODES + ["all"], default="all")
     evaluate_parser.add_argument("--limit", type=int, default=150)
-    for name in ["export-scores", "summarize", "package", "preflight"]:
+    evaluate_parser.add_argument('--review-source', choices=['human', 'assistant'], default='human')
+    evaluate_parser.add_argument('--manifest')
+    for name in ['export-scores', 'summarize']:
+        command = sub.add_parser(name)
+        command.add_argument('--review-source', choices=['human', 'assistant'], default='human')
+        command.add_argument('--manifest')
+    command = sub.add_parser('freeze')
+    command.add_argument('--manifest', required=True)
+    for name in ['package', 'preflight']:
         sub.add_parser(name)
     args = parser.parse_args()
     try:
         if args.command == "dataset":
             write_cases(ROOT / "research" / "cases.jsonl")
             print("Created 150 synthetic cases (50 development, 100 held-out). Expected labels require human review.")
+        elif args.command == 'probes':
+            from .probes import generate_probes, compare, PROBE_VERSION
+            folder = ROOT / 'research' / 'probes' / PROBE_VERSION
+            probes = generate_probes()
+            dump(folder / 'cases.json', probes)
+            if args.vector and not args.live:
+                raise RagError('--vector requires --live; no API calls were made.')
+            if args.live:
+                with research_lock(ROOT / 'research'):
+                    settings, pool = settings_and_governor()
+                    cache = Store(folder / 'cache.sqlite')
+                    client = SharedClient(pool, cache)
+                    try:
+                        with pool.job():
+                            result = compare(probes, client, args.vector)
+                        dump(folder / ('vector-comparison.json' if args.vector else 'comparison.json'), result)
+                    finally:
+                        client.close()
+                        cache.close()
+            print(f'Development probes: {folder}. Experiments never enable detection changes automatically.')
         elif args.command == "prepare-demo":
-            prepare_demo(args.capture)
+            with research_lock(ROOT / 'research'):
+                prepare_demo(args.capture)
         elif args.command == "evaluate":
-            evaluate(args)
+            with research_lock(ROOT / 'research'):
+                evaluate(args)
         elif args.command == "export-scores":
-            export_scores()
+            export_scores(args.review_source, experiment_folder(ROOT, args.manifest) if args.manifest else None)
         elif args.command == "summarize":
-            summarize()
+            summarize(args.review_source, experiment_folder(ROOT, args.manifest) if args.manifest else None)
+        elif args.command == 'freeze':
+            with research_lock(ROOT / 'research'):
+                freeze(experiment_folder(ROOT, args.manifest))
         elif args.command == "package":
             package()
         else:

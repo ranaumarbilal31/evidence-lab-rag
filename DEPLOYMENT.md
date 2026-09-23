@@ -4,6 +4,17 @@ Target: **Streamlit Community Cloud**, an HTTPS `streamlit.app` URL. The app mus
 
 ## Owner prerequisites
 
+See [Add your own shared API keys](SHARED_KEYS.md) for the private file format,
+ten-key setup, project accounting, disabling keys, and hosted configuration.
+
+For the redesigned version, copy the optional `[[shared_keys]]` blocks from
+`secrets.example.toml` into Streamlit Secrets (at most 10). Each enabled block needs
+its actual Google project ID, key, billing-disabled confirmation and model budgets.
+Do not assign different IDs to keys from one project. The legacy single key still
+works when no pool entries are enabled. No live request is required at startup.
+Use `RESEARCH_PAUSE_SHARED` on the hosted deployment when reserving its project for
+local research; changing a local setting does not update the remote host.
+
 Owner Gemini secrets are required only for the shared demo. Personal-key mode works without them. Install the updated `requirements.txt`, including the bounded DOCX/XLSX extraction dependencies. No visitor keys belong in deployment secrets, environment variables, source control, or persistent storage.
 
 - A GitHub account and a repository you control.

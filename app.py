@@ -19,9 +19,12 @@ from rag.providers import Connection, PersonalClient, SessionGate, check_connect
 from rag.recovery import MAX_RECOVERY_ATTEMPTS, RECOVERY_TOP_K
 from rag.samples import SCENARIOS
 from rag.store import Index, Store, build_index
+from rag.shared import SharedPool, SharedClient
+from rag.ui import theme, header, sidebar_brand
 
 ROOT = Path(__file__).resolve().parent
 st.set_page_config(page_title="Evidence Lab · Secure RAG", page_icon="◈", layout="wide")
+theme()
 
 
 def read_settings():
@@ -32,13 +35,14 @@ def read_settings():
         pass
     try:
         return Settings.from_mapping(values)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, AttributeError):
+        st.error('Shared service settings need attention. You can still use saved examples or connect your own key.')
         return Settings.from_mapping({})
 
 
 @st.cache_resource
-def governor_for(generation, embedding):
-    return Governor({GEN_MODEL: generation, EMBED_MODEL: embedding})
+def governor_for(settings):
+    return SharedPool(settings)
 
 
 @st.cache_resource
@@ -98,12 +102,14 @@ def make_client(cache, ticket):
         if not st.session_state.connection:
             raise RagError("Connect a compatible personal key first.")
         return PersonalClient(st.session_state.connection, cache)
-    return Gemini(settings, governor, cache, ticket)
+    if settings.research_pause_shared:
+        raise QuotaError('Shared processing is reserved for research. Connect your own key or explore a saved example.')
+    return SharedClient(governor, cache)
 
 
 def show_result(result, heading):
     st.subheader(heading)
-    labels = {"answered": "Answer with evidence", "conflict": "Conflicting evidence",
+    labels = {"answered": "Answer with evidence", "partial_answer": "Partial answer", "conflict": "Conflicting evidence",
               "insufficient_evidence": "Insufficient evidence", "quota_exceeded": "Live quota paused", "error": "Unable to verify"}
     st.caption(labels.get(result.status, result.status).upper())
     # Plain text avoids model-authored Markdown links, remote images, or HTML.
@@ -241,242 +247,241 @@ def show_safety_wall_result(report, heading):
 init_session()
 st.session_state.quota_help_count = 0
 settings = read_settings()
-governor = governor_for(settings.generation, settings.embedding)
+governor = governor_for(settings)
 
 with st.sidebar:
-    st.markdown("### ◈ Evidence Lab")
-    st.caption("SECURE & RELIABLE RAG")
-    st.divider()
-    st.markdown("**A small research demo**")
-    st.write("Explore what happens when retrieved evidence is malicious, irrelevant, conflicting, or incomplete.")
-    st.caption("Shared demo or your API key · No local AI models")
-    if settings.ready:
-        st.success("Shared API configured")
+    sidebar_brand()
+    st.caption('CONNECTION')
+    if settings.research_pause_shared:
+        st.info('Shared live requests paused for research')
+    elif settings.ready:
+        st.success("Shared Gemini pool configured")
     else:
         st.info("Shared API unavailable · your own key can still be used")
-    with st.expander("Service & usage"):
+    with st.expander("Service & usage", expanded=False):
         st.write("Free hosting can sleep. API limits are shared by all visitors, and requests may pause.")
         st.json(governor.snapshot())
         st.caption("App counters are estimates and reset on host restart. Provider Free-tier quotas remain authoritative.")
     st.button("Clear my session", on_click=clear_session, use_container_width=True)
+    st.divider()
+    st.caption('RESEARCH CHECKPOINT')
+    st.markdown('**150 cases · 3 pipelines**')
+    st.caption('Human validation pending. Assistant-scored pilot results are provisional; the full paired evaluation is incomplete.')
+    with st.expander('What are we measuring?'):
+        st.write('Attack success and clean accuracy. Recovery gains. New false positives. Extra latency.')
+        st.caption('Saved demonstrations are examples, not proof that these research targets have been met.')
     st.caption("Research prototype: evidence checks reduce risk; they do not guarantee truth or complete attack protection.")
 
-st.caption("RETRIEVE  /  CHECK  /  EXPLAIN")
-st.title("Better answers start with better evidence.")
-st.write("Compare ordinary RAG with a pipeline that checks the information before it answers.")
-st.subheader("API connection")
-use_personal = st.toggle("Use my API key", key="use_personal", on_change=reset_connection)
-if use_personal:
-    st.caption("Your key is kept only in this session. Connection checks and RAG requests may incur your provider's charges.")
-    provider = st.selectbox("Provider", ["Gemini", "OpenAI", "Custom", "Anthropic"], key="provider", on_change=reset_connection)
-    if provider == "Anthropic":
-        st.warning("Direct Anthropic keys do not provide embeddings. Use a Gemini, OpenAI, or compatible key with both embeddings and structured JSON generation.")
-    with st.form("personal_connection"):
-        personal_key = st.text_input("API key", type="password", key="personal_key", max_chars=4096)
-        endpoint = generation = embedding = ""
-        if provider == "Custom":
-            endpoint = st.text_input("HTTPS API base URL", placeholder="https://your-provider.example/v1", max_chars=2048)
-            generation = st.text_input("Generation model", max_chars=200)
-            embedding = st.text_input("Embedding model", max_chars=200)
-        connect = st.form_submit_button("Check and connect", disabled=provider == "Anthropic")
-    if connect:
-        try:
-            with st.session_state.session_gate.job():
-                reset_connection()
-                candidate = Connection.create(provider, personal_key, endpoint, generation, embedding)
-                with st.spinner("Checking embeddings and structured generation with synthetic text..."):
-                    checked = check_connection(candidate)
-                reset_connection()
-                st.session_state.connection = checked
-            st.rerun()
-        except RagError as exc:
-            st.error(str(exc))
-    if st.session_state.connection:
-        connected = st.session_state.connection
-        st.success(f"Connected to {connected.provider} / {connected.generation_model}")
-        st.caption(f"Embeddings: {connected.embedding_model}. Your provider's limits and charges apply.")
-        st.button("Disconnect", on_click=reset_connection)
-    else:
-        st.info("Connect a key with access to embeddings and structured JSON generation to enable RAG.")
-else:
-    st.write("**Shared demo API**")
-    st.caption("Shared allowance is limited. Turn on Use my API key above to use your own provider account.")
-    if not settings.ready:
-        st.info("The shared API is not configured. You can still connect your own key.")
-
-ready = bool(st.session_state.connection) if use_personal else settings.ready
-active_governor = st.session_state.session_gate if use_personal else governor
-st.info("Use only public or synthetic, non-sensitive documents. Document text and questions are sent to your selected API provider (Google in shared mode). Uploads also pass through this hosting service.")
-
-source = st.radio("Choose your evidence", ["Explore sample scenarios", "Use my documents"], horizontal=True)
-index, cache, warnings = None, (st.session_state.private_store if use_personal else public_cache()), []
-scenario_id = None
-if source == "Explore sample scenarios":
-    scenario_id = st.selectbox("Scenario", list(SCENARIOS), format_func=lambda k: f"{SCENARIOS[k]['icon']} · {SCENARIOS[k]['title']}")
-    sample = SCENARIOS[scenario_id]
-    st.write(sample["description"])
-    with st.expander("Read the source documents"):
-        for filename, text in sample["documents"].items():
-            st.markdown(f"**{filename}**")
-            st.text(text)
-    index_path = ROOT / "demo" / f"{scenario_id}.index.json"
+header()
+connection_panel = st.expander('API connection · shared Gemini or your own provider', expanded=st.session_state.get('use_personal', False))
+with connection_panel:
+    st.caption('Shared requests may rotate between owner-configured Gemini projects with the same models. Personal connections never use the shared pool.')
+    use_personal = st.toggle("Use my API key", key="use_personal", on_change=reset_connection)
     if use_personal:
-        index = st.session_state.sample_indexes.get(scenario_id)
-    elif index_path.exists():
-        try:
-            index = Index.from_dict(json.loads(index_path.read_text(encoding="utf-8")))
-        except (RagError, ValueError, KeyError, TypeError):
-            st.error("The bundled index is incompatible. The owner must rebuild it before live use.")
-    else:
-        st.caption("The owner still needs to generate this scenario’s API embedding index. No live results are claimed.")
-    capture_path = ROOT / "demo" / f"{scenario_id}.capture.json"
-    with st.expander("View a demonstration example", expanded=not ready):
-        if capture_path.exists():
-            capture = json.loads(capture_path.read_text(encoding="utf-8"))
-            st.warning(f"Saved demonstration — not a live response. Captured {capture['captured_at']} using {capture['model']}.")
-            st.caption(f"Saved question: {capture['question']}")
-            show_result(Result(**capture["protected"]), "Saved protected result")
-            if "baseline" in capture:
-                show_result(Result(**capture["baseline"]), "Saved ordinary RAG result")
-            if not capture.get("human_reviewed", False):
-                st.caption("This capture has not received independent human review.")
+        st.caption("Your key is kept only in this session. Connection checks and RAG requests may incur your provider's charges.")
+        provider = st.selectbox("Provider", ["Gemini", "OpenAI", "Custom", "Anthropic"], key="provider", on_change=reset_connection)
+        if provider == "Anthropic":
+            st.warning("Direct Anthropic keys do not provide embeddings. Use a Gemini, OpenAI, or compatible key with both embeddings and structured JSON generation.")
+        with st.form("personal_connection"):
+            personal_key = st.text_input("API key", type="password", key="personal_key", max_chars=4096)
+            endpoint = generation = embedding = ""
+            if provider == "Custom":
+                endpoint = st.text_input("HTTPS API base URL", placeholder="https://your-provider.example/v1", max_chars=2048)
+                generation = st.text_input("Generation model", max_chars=200)
+                embedding = st.text_input("Embedding model", max_chars=200)
+            connect = st.form_submit_button("Check and connect", disabled=provider == "Anthropic")
+        if connect:
+            try:
+                with st.session_state.session_gate.job():
+                    reset_connection()
+                    candidate = Connection.create(provider, personal_key, endpoint, generation, embedding)
+                    with st.spinner("Checking embeddings and structured generation with synthetic text..."):
+                        checked = check_connection(candidate)
+                    reset_connection()
+                    st.session_state.connection = checked
+                st.rerun()
+            except RagError as exc:
+                st.error(str(exc))
+        if st.session_state.connection:
+            connected = st.session_state.connection
+            st.success(f"Connected to {connected.provider} / {connected.generation_model}")
+            st.caption(f"Embeddings: {connected.embedding_model}. Your provider's limits and charges apply.")
+            st.button("Disconnect", on_click=reset_connection)
         else:
-            st.warning("Illustrative expected behavior — manually authored, not an API result or research measurement.")
-            st.text(sample["expected_answer"])
-            st.caption(f"Expected status: {sample['expected_status']}")
-    default_question = sample["question"]
-else:
-    cache = st.session_state.private_store
-    upload_limits = BYOK_LIMITS if use_personal else UploadLimits()
-    st.caption(f"PDF, TXT, Markdown, JSON, JSONL, CSV, TSV, DOCX, XLSX · 3 files · 2 MB each · 30 PDF pages · {upload_limits.chunks:,} chunks")
-    uploads = st.file_uploader("Choose non-sensitive documents", type=SUPPORTED_FORMATS, accept_multiple_files=True)
-    default_question = ""
-    consent = st.checkbox("These documents are public or synthetic and contain no sensitive, confidential, or personal information.")
-    prepared = None
-    current_hash = None
-    if not uploads:
-        st.session_state.private_index = None
-        st.session_state.upload_fingerprint = None
-        st.session_state.results = None
-    if uploads:
-        files = [(f.name, f.getvalue()) for f in uploads]
-        current_hash = fingerprint([(name, hashlib.sha256(data).hexdigest()) for name, data in files])
-        if current_hash != st.session_state.upload_fingerprint:
-            st.session_state.private_index = None
-            st.session_state.results = None
-        try:
-            prepared, warnings = ingest(files, upload_limits)
-            with st.expander("Preview extracted content"):
-                for chunk in prepared[:5]:
-                    st.caption(chunk.filename + (" · " + chunk.location if chunk.location else ""))
-                    st.text(chunk.text)
-                if len(prepared) > 5:
-                    st.caption("Showing the first five chunks; all chunks are included when indexing.")
-            st.caption(f"{len(prepared)} chunks. Indexing needs at most {len(prepared)} embedding requests before cache hits and retries.")
-            for warning in warnings:
-                st.warning(warning)
-        except RagError as exc:
-            st.error(str(exc))
-    if st.button("Index my documents", disabled=not (prepared and consent and ready)):
-        client = None
-        try:
-            with active_governor.job({EMBED_MODEL: len(prepared)}) as ticket:
-                client = make_client(cache, ticket)
-                progress = st.progress(0.0, text="Embedding through your selected API…")
-                with st.spinner("Building a private session index…"):
-                    built = build_index(prepared, client, lambda value: progress.progress(value))
-                st.session_state.private_index = built
-                st.session_state.private_warnings = warnings
-                st.session_state.upload_fingerprint = current_hash
-                st.success("Your session index is ready.")
-        except RagError as exc:
-            st.warning(str(exc))
-            if isinstance(exc, QuotaError):
-                quota_help()
-        finally:
-            if client:
-                client.close()
-    if current_hash and current_hash == st.session_state.upload_fingerprint:
-        index = st.session_state.private_index
-        for warning in st.session_state.private_warnings:
-            st.warning(warning)
+            st.info("Connect a key with access to embeddings and structured JSON generation to enable RAG.")
+    else:
+        st.write("**Shared demo API**")
+        st.caption("Shared allowance is limited. Turn on Use my API key above to use your own provider account.")
+        if not settings.ready:
+            st.info("The shared API is not configured. You can still connect your own key.")
 
-question = st.text_input("Ask about this evidence", value=default_question, max_chars=1000,
-                         key=f"question_{scenario_id or 'private'}", placeholder="What does the policy actually say?")
-# A custom question is visitor data even when the corpus is public.
-if scenario_id and question != SCENARIOS[scenario_id]["question"]:
-    cache = st.session_state.private_store
-pipeline_choice = st.radio("Pipeline", ["Standard RAG", "Detect & Block", "Full Safety Wall"], index=1, horizontal=True,
-    help="Standard RAG: no safety checks, for comparison. Detect & Block: flags and quarantines suspicious "
-         "evidence before answering. Full Safety Wall: also analyzes what a quarantine cost the question and "
-         "attempts one bounded, independently-verified recovery of the missing fact.")
-compare = False
-if pipeline_choice != "Standard RAG":
-    compare = st.checkbox("Compare with Standard RAG", value=True)
-identity = fingerprint([use_personal, st.session_state.connection.public_config if use_personal and st.session_state.connection else None, source, scenario_id, st.session_state.upload_fingerprint, question, pipeline_choice, compare])
-if identity != st.session_state.result_key:
-    st.session_state.results = None
-if st.button("Check the evidence", type="primary", disabled=not (ready and (index or (use_personal and scenario_id)) and question.strip())):
-    now = time.time()
-    history = [t for t in st.session_state.question_times if now - t < 3600]
-    if not use_personal and (now - st.session_state.last_submit < 20 or len(history) >= 5):
-        st.warning("Please wait between questions. This free demo allows five new questions per session per hour.")
-        quota_help()
-    else:
-        client = None
-        if pipeline_choice == "Full Safety Wall":
-            reservation = {GEN_MODEL: 11 if compare else 10, EMBED_MODEL: 3 if compare else 2}
-        elif pipeline_choice == "Detect & Block":
-            reservation = {GEN_MODEL: 7 if compare else 6, EMBED_MODEL: 1}
+ready = bool(st.session_state.connection) if use_personal else (settings.ready and not settings.research_pause_shared)
+active_governor = st.session_state.session_gate if use_personal else governor
+if settings.research_pause_shared and not use_personal:
+    st.info('Shared live processing is reserved for research. Explore the saved comparisons or connect your own API key.')
+    quota_help()
+st.caption("Use only public or synthetic, non-sensitive documents. Document text and questions are sent to your selected API provider (Google in shared mode). Uploads also pass through this hosting service.")
+
+with st.container(border=True, key='workspace'):
+    st.subheader('01 / Evidence & question')
+    source = st.radio("Choose your evidence", ["Explore sample scenarios", "Use my documents"], horizontal=True)
+    index, cache, warnings = None, (st.session_state.private_store if use_personal else public_cache()), []
+    scenario_id = None
+    if source == "Explore sample scenarios":
+        scenario_id = st.selectbox("Scenario", list(SCENARIOS), format_func=lambda k: f"{SCENARIOS[k]['icon']} · {SCENARIOS[k]['title']}")
+        sample = SCENARIOS[scenario_id]
+        st.write(sample["description"])
+        with st.expander("Read the source documents"):
+            for filename, text in sample["documents"].items():
+                st.markdown(f"**{filename}**")
+                st.text(text)
+        index_path = ROOT / "demo" / f"{scenario_id}.index.json"
+        if use_personal:
+            index = st.session_state.sample_indexes.get(scenario_id)
+        elif index_path.exists():
+            try:
+                index = Index.from_dict(json.loads(index_path.read_text(encoding="utf-8")))
+            except (RagError, ValueError, KeyError, TypeError):
+                st.error("The bundled index is incompatible. The owner must rebuild it before live use.")
         else:
-            reservation = {GEN_MODEL: 1, EMBED_MODEL: 1}
-        try:
-            with active_governor.job(reservation) as ticket:
-                st.session_state.last_submit = now
-                st.session_state.question_times = history + [now]
-                client = make_client(cache, ticket)
-                if use_personal and scenario_id and index is None:
-                    sample_chunks, _ = ingest([(name, text.encode("utf-8")) for name, text in sample["documents"].items()], BYOK_LIMITS)
-                    with st.spinner("Preparing sample evidence with your embedding model…"):
-                        index = build_index(sample_chunks, client)
-                    st.session_state.sample_indexes[scenario_id] = index
-                pipeline = Pipeline(client)
-                with st.status("Retrieving and checking evidence…", expanded=True) as status:
-                    if pipeline_choice == "Full Safety Wall":
-                        st.write("Retrieving evidence, screening it, and attempting bounded recovery where needed.")
-                        primary_kind = "safety_wall"
-                        primary = pipeline.run_safety_wall(question, index)
-                        secondary = None
-                        if compare and primary.status not in {"quota_exceeded", "error"}:
-                            st.write("Running Standard RAG on freshly retrieved evidence.")
+            st.caption("The owner still needs to generate this scenario’s API embedding index. No live results are claimed.")
+        capture_path = ROOT / "demo" / f"{scenario_id}.capture.json"
+        default_question = sample["question"]
+    else:
+        cache = st.session_state.private_store
+        upload_limits = BYOK_LIMITS if use_personal else UploadLimits()
+        st.caption(f"PDF, TXT, Markdown, JSON, JSONL, CSV, TSV, DOCX, XLSX · 3 files · 2 MB each · 30 PDF pages · {upload_limits.chunks:,} chunks")
+        uploads = st.file_uploader("Choose non-sensitive documents", type=SUPPORTED_FORMATS, accept_multiple_files=True)
+        default_question = ""
+        consent = st.checkbox("These documents are public or synthetic and contain no sensitive, confidential, or personal information.")
+        prepared = None
+        current_hash = None
+        if not uploads:
+            st.session_state.private_index = None
+            st.session_state.upload_fingerprint = None
+            st.session_state.results = None
+        if uploads:
+            files = [(f.name, f.getvalue()) for f in uploads]
+            current_hash = fingerprint([(name, hashlib.sha256(data).hexdigest()) for name, data in files])
+            if current_hash != st.session_state.upload_fingerprint:
+                st.session_state.private_index = None
+                st.session_state.results = None
+            try:
+                prepared, warnings = ingest(files, upload_limits)
+                with st.expander("Preview extracted content"):
+                    for chunk in prepared[:5]:
+                        st.caption(chunk.filename + (" · " + chunk.location if chunk.location else ""))
+                        st.text(chunk.text)
+                    if len(prepared) > 5:
+                        st.caption("Showing the first five chunks; all chunks are included when indexing.")
+                st.caption(f"{len(prepared)} chunks. Indexing needs at most {len(prepared)} embedding requests before cache hits and retries.")
+                for warning in warnings:
+                    st.warning(warning)
+            except RagError as exc:
+                st.error(str(exc))
+        if st.button("Index my documents", disabled=not (prepared and consent and ready)):
+            client = None
+            try:
+                with active_governor.job({EMBED_MODEL: len(prepared)}) as ticket:
+                    client = make_client(cache, ticket)
+                    progress = st.progress(0.0, text="Embedding through your selected API…")
+                    with st.spinner("Building a private session index…"):
+                        built = build_index(prepared, client, lambda value: progress.progress(value))
+                    st.session_state.private_index = built
+                    st.session_state.private_warnings = warnings
+                    st.session_state.upload_fingerprint = current_hash
+                    st.success("Your session index is ready.")
+            except RagError as exc:
+                st.warning(str(exc))
+                if isinstance(exc, QuotaError):
+                    quota_help()
+            finally:
+                if client:
+                    client.close()
+        if current_hash and current_hash == st.session_state.upload_fingerprint:
+            index = st.session_state.private_index
+            for warning in st.session_state.private_warnings:
+                st.warning(warning)
+
+    st.divider()
+    st.caption('ASK & COMPARE')
+    question = st.text_input("Ask about this evidence", value=default_question, max_chars=1000,
+                             key=f"question_{scenario_id or 'private'}", placeholder="What does the policy actually say?")
+    # A custom question is visitor data even when the corpus is public.
+    if scenario_id and question != SCENARIOS[scenario_id]["question"]:
+        cache = st.session_state.private_store
+    pipeline_choice = st.radio("Pipeline", ["Standard RAG", "Detect & Block", "Full Safety Wall"], index=1, horizontal=True,
+        help="Standard RAG: no safety checks, for comparison. Detect & Block: flags and quarantines suspicious "
+             "evidence before answering. Full Safety Wall: also analyzes what a quarantine cost the question and "
+             "attempts one bounded, independently-verified recovery of the missing fact.")
+    compare = False
+    if pipeline_choice != "Standard RAG":
+        compare = st.checkbox("Compare with Standard RAG", value=True)
+    identity = fingerprint([use_personal, st.session_state.connection.public_config if use_personal and st.session_state.connection else None, source, scenario_id, st.session_state.upload_fingerprint, question, pipeline_choice, compare])
+    if identity != st.session_state.result_key:
+        st.session_state.results = None
+    if st.button("Check the evidence", type="primary", disabled=not (ready and (index or (use_personal and scenario_id)) and question.strip())):
+        now = time.time()
+        history = [t for t in st.session_state.question_times if now - t < 3600]
+        if not use_personal and (now - st.session_state.last_submit < 20 or len(history) >= 5):
+            st.warning("Please wait between questions. This free demo allows five new questions per session per hour.")
+            quota_help()
+        else:
+            client = None
+            if pipeline_choice == "Full Safety Wall":
+                reservation = {GEN_MODEL: 14 if compare else 13, EMBED_MODEL: 3 if compare else 2}
+            elif pipeline_choice == "Detect & Block":
+                reservation = {GEN_MODEL: 7 if compare else 6, EMBED_MODEL: 1}
+            else:
+                reservation = {GEN_MODEL: 1, EMBED_MODEL: 1}
+            try:
+                with active_governor.job(reservation) as ticket:
+                    st.session_state.last_submit = now
+                    st.session_state.question_times = history + [now]
+                    client = make_client(cache, ticket)
+                    if use_personal and scenario_id and index is None:
+                        sample_chunks, _ = ingest([(name, text.encode("utf-8")) for name, text in sample["documents"].items()], BYOK_LIMITS)
+                        with st.spinner("Preparing sample evidence with your embedding model…"):
+                            index = build_index(sample_chunks, client)
+                        st.session_state.sample_indexes[scenario_id] = index
+                    pipeline = Pipeline(client)
+                    with st.status("Retrieving and checking evidence…", expanded=True) as status:
+                        if pipeline_choice == "Full Safety Wall":
+                            st.write("Retrieving evidence, screening it, and attempting bounded recovery where needed.")
+                            primary_kind = "safety_wall"
+                            primary = pipeline.run_safety_wall(question, index)
+                            secondary = None
+                            if compare and primary.status not in {"quota_exceeded", "error"}:
+                                st.write("Running Standard RAG on freshly retrieved evidence.")
+                                hits = index.retrieve(client.embed(question))
+                                secondary = pipeline.run(question, hits, protected=False)
+                        else:
+                            tick = time.perf_counter()
                             hits = index.retrieve(client.embed(question))
-                            secondary = pipeline.run(question, hits, protected=False)
-                    else:
-                        tick = time.perf_counter()
-                        hits = index.retrieve(client.embed(question))
-                        retrieval_seconds = time.perf_counter() - tick
-                        protected_mode = pipeline_choice == "Detect & Block"
-                        primary_kind = "protected" if protected_mode else "baseline"
-                        st.write("Checking instructions, relevance, conflicts, and answer support." if protected_mode
-                                 else "Running ordinary RAG with no safety checks.")
-                        primary = pipeline.run(question, hits, protected=protected_mode)
-                        primary.timings["retrieval"] = retrieval_seconds
-                        secondary = None
-                        if compare and primary.status not in {"quota_exceeded", "error"}:
-                            st.write("Running Standard RAG on the same retrieved evidence.")
-                            secondary = pipeline.run(question, hits, protected=False)
-                    status.update(label="Evidence check complete" if primary.status not in {"error", "quota_exceeded"} else "Live request paused or failed", state="complete")
-                st.session_state.results = (primary_kind, primary, secondary)
-                st.session_state.result_key = identity
-        except RagError as exc:
-            st.warning(str(exc))
-            if isinstance(exc, QuotaError):
-                quota_help()
-        finally:
-            if client:
-                client.close()
+                            retrieval_seconds = time.perf_counter() - tick
+                            protected_mode = pipeline_choice == "Detect & Block"
+                            primary_kind = "protected" if protected_mode else "baseline"
+                            st.write("Checking instructions, relevance, conflicts, and answer support." if protected_mode
+                                     else "Running ordinary RAG with no safety checks.")
+                            primary = pipeline.run(question, hits, protected=protected_mode)
+                            primary.timings["retrieval"] = retrieval_seconds
+                            secondary = None
+                            if compare and primary.status not in {"quota_exceeded", "error"}:
+                                st.write("Running Standard RAG on the same retrieved evidence.")
+                                secondary = pipeline.run(question, hits, protected=False)
+                        status.update(label="Evidence check complete" if primary.status not in {"error", "quota_exceeded"} else "Live request paused or failed", state="complete")
+                    st.session_state.results = (primary_kind, primary, secondary)
+                    st.session_state.result_key = identity
+            except RagError as exc:
+                st.warning(str(exc))
+                if isinstance(exc, QuotaError):
+                    quota_help()
+            finally:
+                if client:
+                    client.close()
 
 if st.session_state.results:
+    st.subheader('02 / Live comparison')
     primary_kind, primary, secondary = st.session_state.results
     primary_heading = {"safety_wall": "Full Safety Wall", "protected": "Detect & Block", "baseline": "Standard RAG"}[primary_kind]
     render_primary = show_safety_wall_result if primary_kind == "safety_wall" else show_result
@@ -492,6 +497,26 @@ if st.session_state.results:
         quota_help()
     st.download_button("Download this comparison", json.dumps({"pipeline": primary_kind, "primary": asdict(primary),
         "compare": asdict(secondary) if secondary else None}, indent=2), "rag-comparison.json", "application/json")
+
+if scenario_id and (not st.session_state.results or st.session_state.results[1].status in {'quota_exceeded', 'error'}):
+    with st.container(border=True, key="saved"):
+        st.subheader("02 / Saved comparison")
+        if capture_path.exists():
+            capture = json.loads(capture_path.read_text(encoding="utf-8"))
+            st.warning(f"Saved demonstration — not a live response. Captured {capture['captured_at']} using {capture['model']}.")
+            st.caption(f"Saved question: {capture['question']}")
+            saved_left, saved_right = st.columns(2, gap="large")
+            with saved_left:
+                show_result(Result(**capture["protected"]), "Detect & Block")
+            with saved_right:
+                if "baseline" in capture:
+                    show_result(Result(**capture["baseline"]), "Standard RAG")
+            if not capture.get("human_reviewed", False):
+                st.caption("This capture has not received independent human review.")
+        else:
+            st.warning("Illustrative expected behavior — manually authored, not an API result or research measurement.")
+            st.text(sample["expected_answer"])
+            st.caption(f"Expected status: {sample['expected_status']}")
 
 st.divider()
 st.caption("Evidence Lab · Research demonstration · Shared free demo or your own API account · No automatic provider fallback")

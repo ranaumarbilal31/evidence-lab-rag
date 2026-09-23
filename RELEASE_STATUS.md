@@ -1,4 +1,32 @@
-# Release status — 15 September 2026
+# Release status — 23 September 2026
+
+## Current local implementation
+
+- Final local test suite: **186 passed**. Deployment archive checked to exclude
+  private research and credentials. Demo captures remain unchanged.
+
+- Updated from GitHub commit `0870650`; local secrets, research, captures and the
+  original untracked plan were preserved.
+- Responsive light research workspace, existing BYOK and uploads, shared pool of
+  up to 10 owner-supplied Gemini keys, project-level rate accounting and visible
+  quota/BYOK handling implemented. Ten disabled placeholders were added privately
+  for the owner; no new key or billing confirmation was invented.
+- Assistant/human review separation, process locking, source/dataset manifests,
+  held-out freeze gates, paired reporting and development detection probes added.
+- 150 labels assistant-reviewed; 18 live baseline outputs assistant-scored.
+  Protected/Safety Wall evaluation paused at the generation budget. Held-out
+  evaluation and independent human review remain pending. See RESEARCH_RESULTS.md.
+- Vector similarity and semantic adjudication stay experimental and disabled.
+  Recovery candidates now receive the active detector before support validation.
+- Desktop (1440 px) and mobile (390 px) local browser layouts checked. Mobile
+  document width equals viewport width; comparison cards stack without overflow.
+  BYOK controls and historical answer/citation presentation were inspected.
+- This update has **not been published to Streamlit Community Cloud**. Hosted
+  acceptance of this revision, real multi-project rotation, OpenAI/custom live
+  BYOK and regenerated captures remain unverified. Mocked tests are not live API
+  acceptance or evidence that research targets pass.
+
+## Historical deployment observations — 15 September 2026
 
 Demo: https://evidence-lab-rag.streamlit.app/
 

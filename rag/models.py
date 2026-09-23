@@ -98,7 +98,8 @@ class DetectionResult:
     flagged: bool
     flag_reason: str
     confidence: float
-    source: str  # "heuristic" | "classifier"
+    source: str  # "heuristic" | "classifier" | "vector"
+    similarity: dict | None = None  # separate cosine evidence; not confidence
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,10 @@ class RagError(Exception):
 
 class QuotaError(RagError):
     pass
+
+
+class AccessError(RagError):
+    """A credential was rejected; never includes provider text or the key."""
 
 
 class SchemaError(RagError):

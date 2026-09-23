@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from .config import (GEN_MODEL, EMBED_MODEL, DIMENSIONS, EMBED_VERSION,
                      MAX_INPUT, MAX_OUTPUT, PROMPT_VERSION)
-from .models import RagError, QuotaError, SchemaError
+from .models import RagError, QuotaError, SchemaError, AccessError
 
 
 def serialized(value):
@@ -64,13 +64,21 @@ class Gemini:
                     if retry is not None and 0 < retry <= 10 and attempt < 2:
                         time.sleep(retry)
                         continue
-                    self.governor.pause(max(60, retry or 60))
+                    delay = max(60, retry or 60)
+                    # Provider daily quota violations must not be retried every minute.
+                    if 'perday' in json.dumps(body).lower().replace('_', ''):
+                        from datetime import datetime, timedelta
+                        from zoneinfo import ZoneInfo
+                        now = datetime.now(ZoneInfo('America/Los_Angeles'))
+                        reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                        delay = max(delay, reset.timestamp() - now.timestamp())
+                    self.governor.pause(delay)
                     raise QuotaError("The API quota is unavailable or exhausted. Progress is cached; retry after the provider reset.") from None
                 if code in {500, 502, 503, 504} and attempt < 2:
                     time.sleep(attempt + 1)
                     continue
                 if code in {401, 403}:
-                    raise RagError("The API rejected access. The owner must check key permissions, account eligibility, and model access.") from None
+                    raise AccessError("The API rejected access. The owner must check key permissions, account eligibility, and model access.") from None
                 if code == 404:
                     raise RagError("The configured API model is unavailable. No substitute or paid fallback was used.") from None
                 raise RagError("The API request failed. No unchecked answer was returned.") from None

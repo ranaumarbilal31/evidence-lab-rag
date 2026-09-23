@@ -84,7 +84,7 @@ def suspicious(text: str) -> bool:
 
 
 def detect(chunks: Mapping[str, Chunk], question: str,
-           ask: Callable[[str, dict], Safety]) -> list[DetectionResult]:
+           ask: Callable[[str, dict], Safety], *, policy='heuristic_first', similarity=None) -> list[DetectionResult]:
     """Run the Safety Wall over every chunk in `chunks`.
 
     `ask(stage, payload)` is the caller's existing model-call wrapper (see
@@ -96,11 +96,13 @@ def detect(chunks: Mapping[str, Chunk], question: str,
     is the audit trail. This function classifies only — it never mutates or
     filters `chunks`; the caller decides what to quarantine.
     """
+    if policy not in {'heuristic_first', 'semantic_adjudication'}:
+        raise ValueError('Unknown detection policy')
     results: dict[str, DetectionResult] = {}
     remaining: dict[str, Chunk] = {}
     for chunk_id, chunk in chunks.items():
         hit = heuristic_scan(chunk.text)
-        if hit:
+        if hit and policy == 'heuristic_first':
             name, matched = hit
             results[chunk_id] = DetectionResult(
                 chunk_id=chunk_id, flagged=True,
@@ -122,4 +124,13 @@ def detect(chunks: Mapping[str, Chunk], question: str,
                 flag_reason=item.reason,
                 confidence=CLASSIFIER_CONFIDENCE[item.decision], source="classifier")
 
+    if similarity is not None:
+        from dataclasses import replace
+        for chunk_id, verdict in results.items():
+            # Existing positive detections need no duplicate vector check.
+            if not verdict.flagged:
+                match = similarity.match(chunks[chunk_id].text)
+                results[chunk_id] = replace(verdict, similarity=match,
+                    flagged=match['flagged'], source='vector' if match['flagged'] else verdict.source,
+                    flag_reason=(f"Experimental similarity to attack reference {match['reference']}" if match['flagged'] else verdict.flag_reason))
     return [results[chunk_id] for chunk_id in chunks]

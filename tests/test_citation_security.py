@@ -158,6 +158,7 @@ def test_valid_recovered_citation_is_accepted():
     quote = "The withdrawal deadline is 14 days after the start of term."
     responses = {
         "missing_fact": {"facts": ["withdrawal deadline"]},
+        "safety": lambda p: {"items": [{"chunk_id": d['chunk_id'], "decision": "safe", "reason": "Independent policy"} for d in p['documents']]},
         "recovery_verify": lambda payload: {"items": [{
             "chunk_id": payload["documents"][0]["chunk_id"], "relevant": True, "reason": "matches",
             "claims": [{"text": "deadline", "source": {"chunk_id": payload["documents"][0]["chunk_id"], "quote": quote}}]}]},

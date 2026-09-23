@@ -29,6 +29,7 @@ retrieval or ranking (see rag.store.Index.retrieve, reused unchanged via
 from __future__ import annotations
 
 from difflib import SequenceMatcher
+from dataclasses import asdict
 from typing import Callable, Mapping
 
 from .detection import BASE, heuristic_scan
@@ -115,7 +116,7 @@ def _verify_support(candidate: Chunk, missing_facts: list[str],
 
 
 def recover(question: str, quarantined: Mapping[str, Chunk], already_trusted_ids: set,
-            ask: Callable, embed: Callable[[str], list], retrieve_fn: Callable[[list, int, set], list[Hit]]
+            ask: Callable, embed: Callable[[str], list], retrieve_fn: Callable[[list, int, set], list[Hit]], *, screen=None
             ) -> RecoveryResult:
     """Attempt one bounded, targeted recovery for evidence lost to quarantine.
 
@@ -158,9 +159,13 @@ def recover(question: str, quarantined: Mapping[str, Chunk], already_trusted_ids
             if dup_reason:
                 rejected.append({"chunk_id": candidate.id, "reason": dup_reason})
                 continue
-            if heuristic_scan(candidate.text):
+            verdicts = screen({candidate.id: candidate}) if screen is not None else None
+            if verdicts is not None and (len(verdicts) != 1 or verdicts[0].chunk_id != candidate.id):
+                raise SchemaError('Recovery screening returned an invalid candidate ID.')
+            if (verdicts[0].flagged if verdicts is not None else heuristic_scan(candidate.text)):
                 rejected.append({"chunk_id": candidate.id,
-                                  "reason": "Safety Wall heuristic flagged the replacement candidate itself."})
+                                  "reason": "Safety Wall screening flagged the replacement candidate itself.",
+                                  **({'detection': asdict(verdicts[0])} if verdicts else {})})
                 continue
             quote = _verify_support(candidate, missing_facts, ask)
             if not quote:

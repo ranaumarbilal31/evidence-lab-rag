@@ -5,6 +5,7 @@ from dataclasses import asdict
 
 from .api import input_bound
 from .config import GEN_MODEL, EMBED_MODEL, PROMPT_VERSION, MAX_INPUT
+from .config import DETECTION_POLICY, VECTOR_CHECK_ENABLED, VECTOR_THRESHOLD
 from .decision import ABSTAIN, PARTIAL_ANSWER, decide, context_for
 from .detection import BASE, SAFETY_PROMPT, PATTERNS, suspicious, detect
 from .models import (Chunk, Decision, Safety, Relevance, Conflict, Sufficiency, Draft, Validation,
@@ -68,8 +69,13 @@ def common_context(question, hits):
 
 
 class Pipeline:
-    def __init__(self, client):
+    def __init__(self, client, *, detection_policy=DETECTION_POLICY, vector_check=VECTOR_CHECK_ENABLED):
         self.client = client
+        self.detection_policy = detection_policy
+        self.similarity = None
+        if vector_check:
+            from .similarity import AttackSimilarity
+            self.similarity = AttackSimilarity(client.embed, VECTOR_THRESHOLD)
 
     def run(self, question, hits, protected=True, disable=None, recover=False, retrieve_fn=None):
         if disable not in {None, "injection", "relevance", "conflict", "sufficiency", "validation"}:
@@ -79,6 +85,7 @@ class Pipeline:
         result = Result("error", "No answer was produced.", configuration={
             "generation_model": GEN_MODEL, "embedding_model": EMBED_MODEL,
             "prompt_version": PROMPT_VERSION, "protected": protected, "disabled": disable,
+            "detection_policy": self.detection_policy, "vector_check": self.similarity is not None,
             **getattr(self.client, "configuration", {})})
 
         def ask(stage, payload):
@@ -114,7 +121,9 @@ class Pipeline:
                 # the result regardless of outcome); flagged chunks are quarantined here
                 # -- deleted from `chunks` before anything downstream, including
                 # generation, can see their text.
-                detections = detect(chunks, question, ask)
+                def screen(items):
+                    return detect(items, question, ask, policy=self.detection_policy, similarity=self.similarity)
+                detections = screen(chunks)
                 result.detections = [asdict(d) for d in detections]
                 quarantined = {}
                 for d in detections:
@@ -130,7 +139,7 @@ class Pipeline:
                 # chunk came from recovery instead of the original retrieval. A quarantined
                 # chunk id is excluded from the recovery search and can never re-enter `chunks`.
                 if quarantined and recover and retrieve_fn is not None:
-                    recovery = recover_evidence(question, quarantined, set(chunks), ask, self.client.embed, retrieve_fn)
+                    recovery = recover_evidence(question, quarantined, set(chunks), ask, self.client.embed, retrieve_fn, screen=screen)
                     result.recovery = asdict(recovery)
                     for rc in recovery.recovered_chunks:
                         chunks[rc.chunk_id] = Chunk(rc.chunk_id, rc.document_hash, rc.source_doc, rc.page, rc.text, rc.location)

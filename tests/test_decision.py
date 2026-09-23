@@ -118,6 +118,7 @@ def test_2_malicious_evidence_with_successful_recovery_yields_answer():
     quote = recovered.text
     responses = {
         "missing_fact": {"facts": ["withdrawal deadline"]},
+        "safety": lambda p: {"items": [{"chunk_id": d['chunk_id'], "decision": "safe", "reason": "Independent policy"} for d in p['documents']]},
         "recovery_verify": lambda p: {"items": [{"chunk_id": p["documents"][0]["chunk_id"], "relevant": True, "reason": "matches",
             "claims": [{"text": "deadline", "source": {"chunk_id": p["documents"][0]["chunk_id"], "quote": quote}}]}]},
         "relevance": lambda p: {"items": [{"chunk_id": d["chunk_id"], "relevant": True, "reason": "on topic",
