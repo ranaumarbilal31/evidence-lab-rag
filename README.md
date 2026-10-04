@@ -25,12 +25,7 @@ The generation default remains `gemini-3.6-flash`: the lite candidate did not pa
 the existing configuration's live probe, and a larger project quota was not verified.
 See [model review](MODEL_QUOTA_REVIEW.md).
 
-**Research is incomplete.** All 150 labels have separate assistant review records;
-18 real baseline outputs were assistant-scored before quota exhaustion. No paired
-security or recovery target can yet be evaluated. Human flags remain false.
-See [results and missing measurements](RESEARCH_RESULTS.md) and the
-[manifest-based evaluation workflow](RESEARCH_WORKFLOW.md). CLI human review is
-still the default; `--review-source assistant` is explicit and provisional.
+**Research is in progress (development split run; no results claimed yet).** All 150 expected labels were human-reviewed independently by two reviewers; they agreed on every case, so Cohen's kappa is mathematically undefined (zero label variance) and raw agreement is reported instead. The full development split (50 cases) has been run through all three pipelines (baseline, protected, safety_wall), giving 150 real outputs, and each output has been human-scored by a single reviewer. Those scores have not yet been aggregated into `research/summary.json`, and the held-out split has not been run. No paired security or recovery target is claimed yet. See [results and missing measurements](RESEARCH_RESULTS.md) and the [manifest-based evaluation workflow](RESEARCH_WORKFLOW.md). CLI human review is still the default; `--review-source assistant` is explicit and provisional.
 
 Vector screening and semantic adjudication are experimental and disabled by
 default pending development calibration. Recovery candidates receive the same
@@ -114,7 +109,7 @@ The public app's pipeline selector (Standard RAG / Detect & Block / Full Safety 
 
 Implemented and covered by automated tests (no live API calls in tests): detection (heuristic + classifier), quarantine, missing-fact analysis, bounded single-attempt recovery with duplicate rejection and independent verification, the deterministic answer/partial_answer/abstain decision layer, and citation validation that fails closed — including adversarial cases like a citation pointing at a quarantined chunk's own genuine text, and a quota error arriving after citations were already checked. See `tests/` for the full scenario list.
 
-Still open, and not to be claimed as done: independent human review of the 150-case dataset's expected labels, any human-scored development or held-out evaluation run (the four questions above have no numeric answer yet), and hosted acceptance testing. One known, disclosed, tested-but-unresolved gap: the fast heuristic layer can still misfire on benign text that literally quotes a trigger phrase (e.g. an educational example), because it runs before the semantic classifier gets a look. See [LIMITATIONS.md](LIMITATIONS.md) and [RELEASE_STATUS.md](RELEASE_STATUS.md) for the current, unvarnished status.
+Still open, and not to be claimed as done: aggregation of the human-scored development results into the four numeric answers above, any held-out evaluation (deliberately not started until development results are final), a second human scorer for the output review, and hosted acceptance testing. Observed so far on development data: in the recorded safety_wall runs, bounded recovery was attempted 12 times and succeeded 0 times (`research/summary.json`), and the baseline pipeline already resisted the synthetic injections and abstained or flagged conflicts in free text in this small dataset, so the attacks may be too easy to separate the pipelines; this is a limitation, not a robustness claim. One known, disclosed, tested-but-unresolved gap: the fast heuristic layer can still misfire on benign text that literally quotes a trigger phrase (e.g. an educational example), because it runs before the semantic classifier gets a look. See [LIMITATIONS.md](LIMITATIONS.md) and [RELEASE_STATUS.md](RELEASE_STATUS.md) for the current, unvarnished status.
 
 ## Current state
 
