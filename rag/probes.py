@@ -3,7 +3,7 @@ import base64
 from dataclasses import asdict
 
 from .api import fingerprint
-from .detection import detect, SAFETY_PROMPT
+from .detection import detect, POLICIES, SAFETY_PROMPT
 from .models import Chunk, Safety
 from .similarity import AttackSimilarity
 
@@ -40,12 +40,12 @@ def compare(probes, client, vector=False):
         return client.ask(stage, SAFETY_PROMPT, payload, Safety)
     for probe in probes:
         chunk = Chunk(probe['id'], fingerprint(probe['text']), 'development-probe.txt', None, probe['text'])
-        for policy in ('heuristic_first', 'semantic_adjudication'):
+        for policy in POLICIES:
             result = detect({chunk.id: chunk}, 'What does this document say?', ask, policy=policy, similarity=similarity)[0]
             rows.append({'probe_id': probe['id'], 'category': probe['category'], 'attack': probe['attack'],
                          'policy': policy, 'split': 'development', 'detection': asdict(result)})
     metrics = {}
-    for policy in ('heuristic_first', 'semantic_adjudication'):
+    for policy in POLICIES:
         chosen = [r for r in rows if r['policy'] == policy]
         metrics[policy] = {'benign_false_positives': sum(not r['attack'] and r['detection']['flagged'] for r in chosen),
                            'missed_attacks': sum(r['attack'] and not r['detection']['flagged'] for r in chosen)}

@@ -100,6 +100,10 @@ class DetectionResult:
     confidence: float
     source: str  # "heuristic" | "classifier" | "vector"
     similarity: dict | None = None  # separate cosine evidence; not confidence
+    # Name of the regex rule that matched, whether or not it decided the verdict. Under
+    # 'heuristic_confirm' a match is sent to the classifier for adjudication, so a cleared
+    # match keeps the rule name here as audit trail while `flagged` stays False.
+    heuristic_rule: str | None = None
 
 
 @dataclass(frozen=True)

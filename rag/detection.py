@@ -20,10 +20,14 @@ chunk's verdict (flagged or not) is preserved as a `DetectionResult` for
 audit/debugging/evaluation, kept separate from the trusted-evidence path.
 
 Cost note: to avoid paying for a model call on content already known to be
-unsafe, only chunks that survive the heuristic pass are sent to the
-classifier — matching this project's existing behavior (a chunk caught by
-regex was already excluded before the classifier stage existed as its own
-module).
+unsafe, the default `heuristic_first` policy sends only the chunks that survive
+the heuristic pass to the classifier — matching this project's existing behavior
+(a chunk caught by regex was already excluded before the classifier stage existed
+as its own module). The `heuristic_confirm` policy instead routes a regex match
+to the classifier as well, so a benign quotation of a trigger phrase can be
+cleared; that costs extra tokens in the same batched `safety` call, not an extra
+call, except when every chunk matches a rule. `semantic_adjudication` sends every
+chunk to the classifier and ignores the regex verdict entirely.
 """
 from __future__ import annotations
 
@@ -68,6 +72,10 @@ PATTERNS = [
 CLASSIFIER_CONFIDENCE = {"safe": 0.1, "uncertain": 0.5, "suspicious": 0.9}
 HEURISTIC_CONFIDENCE = 1.0
 
+# Supported detection orderings. See detect() for what each one does; probes.py
+# compares them on development data before any default is changed.
+POLICIES = ('heuristic_first', 'heuristic_confirm', 'semantic_adjudication')
+
 
 def heuristic_scan(text: str) -> tuple[str, str] | None:
     """Return (rule_name, matched_text) for the first matching rule, else None."""
@@ -95,20 +103,36 @@ def detect(chunks: Mapping[str, Chunk], question: str,
     Returns exactly one DetectionResult per input chunk, flagged or not: this
     is the audit trail. This function classifies only — it never mutates or
     filters `chunks`; the caller decides what to quarantine.
+
+    Policies differ only in whether a regex match is trusted on its own:
+
+    - ``heuristic_first``: a match is flagged immediately and never reaches the
+      classifier. Cheapest, but a benign quotation of a trigger phrase is a false
+      positive that nothing downstream can clear.
+    - ``heuristic_confirm``: a match still reaches the classifier, which decides;
+      the rule name is kept on the result as audit trail.
+    - ``semantic_adjudication``: every chunk reaches the classifier and the regex
+      verdict is ignored entirely.
     """
-    if policy not in {'heuristic_first', 'semantic_adjudication'}:
+    if policy not in POLICIES:
         raise ValueError('Unknown detection policy')
     results: dict[str, DetectionResult] = {}
     remaining: dict[str, Chunk] = {}
+    rules: dict[str, tuple[str, str]] = {}
     for chunk_id, chunk in chunks.items():
         hit = heuristic_scan(chunk.text)
+        if hit:
+            rules[chunk_id] = hit
         if hit and policy == 'heuristic_first':
             name, matched = hit
             results[chunk_id] = DetectionResult(
                 chunk_id=chunk_id, flagged=True,
                 flag_reason=f"Heuristic rule '{name}' matched: {matched!r}",
-                confidence=HEURISTIC_CONFIDENCE, source="heuristic")
+                confidence=HEURISTIC_CONFIDENCE, source="heuristic",
+                heuristic_rule=name)
         else:
+            # Under heuristic_confirm and semantic_adjudication a match is adjudicated
+            # semantically instead of being trusted outright.
             remaining[chunk_id] = chunk
 
     if remaining:
@@ -119,10 +143,22 @@ def detect(chunks: Mapping[str, Chunk], question: str,
         if len(safety.items) != len(remaining) or set(returned) != set(remaining):
             raise SchemaError("The checker omitted, duplicated, or invented a chunk ID.")
         for chunk_id, item in returned.items():
+            matched = rules.get(chunk_id)
+            # A regex match that the classifier clears is reported as its own reason, so
+            # the audit trail shows why a rule match did not become a quarantine.
+            if matched and item.decision == "safe":
+                reason = (f"Heuristic rule '{matched[0]}' matched {matched[1]!r}, but the "
+                          f"classifier judged it safe: {item.reason}")
+            elif matched:
+                reason = (f"Heuristic rule '{matched[0]}' matched {matched[1]!r}; "
+                          f"classifier judged {item.decision}: {item.reason}")
+            else:
+                reason = item.reason
             results[chunk_id] = DetectionResult(
                 chunk_id=chunk_id, flagged=item.decision != "safe",
-                flag_reason=item.reason,
-                confidence=CLASSIFIER_CONFIDENCE[item.decision], source="classifier")
+                flag_reason=reason,
+                confidence=CLASSIFIER_CONFIDENCE[item.decision], source="classifier",
+                heuristic_rule=matched[0] if matched else None)
 
     if similarity is not None:
         from dataclasses import replace

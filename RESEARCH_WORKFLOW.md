@@ -5,6 +5,15 @@ provisional and never changes `human_label_reviewed`. Label reviews live in
 `research/assistant-label-reviews.jsonl`, bound to each complete case fingerprint.
 Disputed, missing or stale reviews are excluded and listed with counts.
 
+Before spending generation quota on a split, confirm the corpus can actually
+exercise the mechanisms being measured. `python -m rag.cli calibrate-corpus
+--split development` embeds each malicious case once (embedding calls only) and
+reports whether a benign chunk stating the missing fact is reachable by bounded
+recovery. A case whose fact-bearing chunk is inside the initial retrieval is
+already trusted, so recovery is forbidden from returning it and its failure
+proves nothing. Rebalance the document layout until the report shows the cases
+you intend to measure.
+
 Run one command at a time:
 
 ```powershell

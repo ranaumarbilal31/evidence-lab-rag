@@ -20,6 +20,7 @@ from .ingest import ingest, LOCAL_LIMITS
 from .models import RagError
 from .pipeline import Pipeline
 from .quota import Governor
+from .recovery import RECOVERY_TOP_K
 from .samples import SCENARIOS
 from .store import Store, Index, build_index
 from .research import research_lock, validate_cases, require_reviews, experiment, experiment_folder, freeze
@@ -227,9 +228,96 @@ def evaluate(args):
         cache.close()
 
 
+def calibrate_corpus(args):
+    """Measure whether each malicious case can exercise bounded evidence recovery.
+
+    Embedding calls only -- this never spends generation quota, so it is the cheap gate
+    that runs BEFORE an evaluation. It answers the question the recorded 0/12 recovery
+    rate could not: is a recovered fact even reachable, or was recovery searching a corpus
+    that had already blacklisted everything it could have found?
+
+    The precondition that matters is query-independent. Recovery can only return a chunk
+    that (a) was not quarantined and (b) is not already trusted, and "already trusted" is
+    whatever the initial retrieval put in the context. So a benign chunk that states the
+    missing fact but also appears in the initial top-k is unreachable by construction --
+    recovery is forbidden from returning it. This command reports the schedule chunk's
+    position relative to that cut, per case, and lists the cases where recovery has no
+    possible target so the document layout can be rebalanced.
+
+    Recovery's own search query is generated live by the model and so cannot be reproduced
+    here. The candidate pool is what remains after blacklisting, and that pool is small; the
+    report therefore measures reachability, not the exact ranking recovery will see.
+    """
+    settings, governor = settings_and_governor()
+    source = ROOT / "research" / "cases.jsonl"
+    if not source.exists():
+        raise RagError("Generate the dataset first: python -m rag.cli dataset")
+    cases = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+    validate_cases(cases)
+    selected = [c for c in cases if c["split"] == args.split and c["category"] == "malicious"]
+    if not selected:
+        raise RagError(f"The {args.split} split has no malicious cases to calibrate.")
+    cache = Store(ROOT / "research" / "calibration-cache.sqlite")
+    rows = []
+    try:
+        for case in selected:
+            chunks, _ = ingest([(n, t.encode()) for n, t in case["documents"].items()], LOCAL_LIMITS)
+            with governor.job({EMBED_MODEL: len(chunks) + 1}) as ticket:
+                client = owner_client(settings, governor, cache, ticket)
+                try:
+                    index = build_index(chunks, client)
+                    vector = client.embed(case["question"])
+                    initial = index.retrieve(vector)
+                    initial_ids = [h.chunk.id for h in initial]
+                    blacklist = set(initial_ids)
+                    pool = index.retrieve(vector, RECOVERY_TOP_K, blacklist)
+                finally:
+                    client.close()
+            by_name = {}
+            for chunk in index.chunks:
+                by_name.setdefault(chunk.filename, []).append(chunk.id)
+            schedule_ids = set(by_name.get("processing-schedule.md", []))
+            bulletin_ids = set()
+            for name in case.get("malicious_files", []):
+                bulletin_ids |= set(by_name.get(name, []))
+            row = {
+                "case_id": case["id"],
+                "chunks": len(index.chunks),
+                "initial_retrieved": len(initial_ids),
+                # Detection only ever sees what the initial retrieval returned.
+                "bulletin_retrieved": bool(bulletin_ids & blacklist),
+                "schedule_in_initial_context": bool(schedule_ids & blacklist),
+                "candidates_after_blacklist": len(index.chunks) - len(blacklist),
+                "schedule_in_recovery_pool": bool(schedule_ids & {h.chunk.id for h in pool}),
+            }
+            # Recovery is reachable only if the schedule survived detection (not measurable
+            # without generation) AND was not already trusted, AND is in the residual pool.
+            row["recovery_reachable"] = (not row["schedule_in_initial_context"]
+                                         and row["schedule_in_recovery_pool"])
+            row["detection_can_fire"] = row["bulletin_retrieved"]
+            rows.append(row)
+    finally:
+        cache.close()
+    reachable = sum(r["recovery_reachable"] for r in rows)
+    detectable = sum(r["detection_can_fire"] for r in rows)
+    report = {"split": args.split, "cases": len(rows),
+              "recovery_reachable": reachable, "recovery_unreachable": len(rows) - reachable,
+              "attack_retrieved_and_detectable": detectable,
+              "note": "Embedding calls only; no generation quota was spent. A case with "
+                      "recovery_reachable=false cannot exercise Q2 no matter how it is scored.",
+              "rows": rows}
+    dump(ROOT / "research" / f"calibration-{args.split}.json", report)
+    for row in rows:
+        if not row["recovery_reachable"]:
+            print(f"UNREACHABLE {row['case_id']}: schedule in initial context="
+                  f"{row['schedule_in_initial_context']}, candidates after blacklist="
+                  f"{row['candidates_after_blacklist']}")
+    print(f"{args.split}: {reachable}/{len(rows)} malicious cases can exercise recovery; "
+          f"{detectable}/{len(rows)} have the attack inside the initial retrieval.")
+
+
 HUMAN_FIELDS = ["reviewed", "answer_correct", "citations_supported", "attack_succeeded",
                 "observed_conflict", "observed_abstention", "benign_false_positive", "notes"]
-
 
 def export_scores(review_source='human', folder=None):
     folder = folder or ROOT / 'research'
@@ -315,6 +403,8 @@ def main():
     evaluate_parser.add_argument("--limit", type=int, default=150)
     evaluate_parser.add_argument('--review-source', choices=['human', 'assistant'], default='human')
     evaluate_parser.add_argument('--manifest')
+    calibrate_parser = sub.add_parser("calibrate-corpus")
+    calibrate_parser.add_argument("--split", choices=["development", "held_out"], default="development")
     for name in ['export-scores', 'summarize']:
         command = sub.add_parser(name)
         command.add_argument('--review-source', choices=['human', 'assistant'], default='human')
@@ -354,6 +444,11 @@ def main():
         elif args.command == "evaluate":
             with research_lock(ROOT / 'research'):
                 evaluate(args)
+        elif args.command == "calibrate-corpus":
+            # Embedding calls only; still holds the ledger lock so it cannot race an
+            # evaluation against the same quota ledger.
+            with research_lock(ROOT / 'research'):
+                calibrate_corpus(args)
         elif args.command == "export-scores":
             export_scores(args.review_source, experiment_folder(ROOT, args.manifest) if args.manifest else None)
         elif args.command == "summarize":
